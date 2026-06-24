@@ -1,0 +1,39 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/orbs/MouseWeaponOrb.tscn" id="1_mouse_weapon_orb"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(28, 28)
+subdivide_width = 1
+subdivide_depth = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.28, 0.35, 0.3, 1)
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(28, 0.2, 28)
+
+[sub_resource type="BoxMesh" id="BoxMesh_origin_marker"]
+size = Vector3(0.25, 0.04, 0.25)
+
+[node name="PracticeGround" type="Node3D"]
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = SubResource("StandardMaterial3D_ground")
+
+[node name="GroundCollision" type="CollisionShape3D" parent="Ground"]
+position = Vector3(0, -0.1, 0)
+shape = SubResource("BoxShape3D_ground")
+
+[node name="OriginMarker" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.03, 0)
+mesh = SubResource("BoxMesh_origin_marker")
+
+[node name="PracticePickups" type="Node3D" parent="."]
+
+[node name="MouseWeaponOrb" parent="PracticePickups" instance=ExtResource("1_mouse_weapon_orb")]
+position = Vector3(3, 0, 0)

@@ -1,0 +1,10 @@
+# Godot auto-generated files
+.godot/
+
+# Blender auto-save
+*.blend1
+*.blend2
+
+# OS files
+Thumbs.db
+.DS_Store

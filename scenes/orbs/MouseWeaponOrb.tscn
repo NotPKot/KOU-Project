@@ -1,0 +1,35 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/choice_orb.gd" id="1_choice_orb"]
+[ext_resource type="PackedScene" path="res://scenes/ui/ChoicePanel.tscn" id="2_choice_panel"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_orb"]
+radius = 0.55
+height = 1.1
+radial_segments = 12
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_orb"]
+albedo_color = Color(0.42, 0.82, 0.92, 1)
+emission_enabled = true
+emission = Color(0.18, 0.55, 0.7, 1)
+emission_energy_multiplier = 0.55
+roughness = 0.7
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_orb"]
+radius = 0.85
+
+[node name="MouseWeaponOrb" type="Area3D"]
+script = ExtResource("1_choice_orb")
+choice_panel_scene = ExtResource("2_choice_panel")
+
+[node name="Visual" type="Node3D" parent="."]
+position = Vector3(0, 0.95, 0)
+
+[node name="OrbMesh" type="MeshInstance3D" parent="Visual"]
+mesh = SubResource("SphereMesh_orb")
+surface_material_override/0 = SubResource("StandardMaterial3D_orb")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.95, 0)
+shape = SubResource("SphereShape3D_orb")

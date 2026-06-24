@@ -1,0 +1,40 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/effects/combat/slash_effect.gd" id="1_slash_effect"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_slash"]
+direction = Vector3(0, 0.45, -1)
+spread = 42.0
+initial_velocity_min = 0.8
+initial_velocity_max = 2.6
+gravity = Vector3(0, -1.2, 0)
+scale_min = 0.04
+scale_max = 0.12
+color = Color(0.58, 0.95, 1, 0.82)
+
+[sub_resource type="SphereMesh" id="SphereMesh_particle"]
+radius = 0.025
+height = 0.05
+radial_segments = 6
+rings = 3
+
+[node name="SlashEffect" type="Node3D"]
+script = ExtResource("1_slash_effect")
+
+[node name="ArcMesh" type="MeshInstance3D" parent="."]
+
+[node name="CoreMesh" type="MeshInstance3D" parent="."]
+
+[node name="SlashParticles" type="GPUParticles3D" parent="."]
+amount = 14
+lifetime = 0.25
+one_shot = true
+explosiveness = 0.85
+process_material = SubResource("ParticleProcessMaterial_slash")
+draw_pass_1 = SubResource("SphereMesh_particle")
+
+[node name="Flash" type="OmniLight3D" parent="."]
+light_color = Color(0.58, 0.95, 1, 1)
+light_energy = 1.8
+omni_range = 2.4
+shadow_enabled = false

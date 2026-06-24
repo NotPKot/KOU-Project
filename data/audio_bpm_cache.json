@@ -1,0 +1,16 @@
+{
+  "res://assets/audio/music/fight/pizza_tower_final_boss.ogg": {
+    "beat_period": 0.301859,
+    "bpm": 198.768,
+    "confidence": 0.458,
+    "raw_bpm": 99.384,
+    "source": "offline_autocorrelation_v1"
+  },
+  "res://assets/audio/music/fight/necrodancer_matriarch.ogg": {
+    "beat_period": 0.417959,
+    "bpm": 143.555,
+    "confidence": 0.541,
+    "raw_bpm": 143.555,
+    "source": "offline_autocorrelation_v1"
+  }
+}

@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://0uvngwwc7tbd"]
+
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
+[ext_resource type="PackedScene" path="res://scenes/ui/SaveButton.tscn" id="3_save_button"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.56, 0.68, 0.78, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.75, 0.8, 0.85, 1)
+ambient_light_energy = 0.75
+
+[node name="Main" type="Node3D" unique_id=956873530]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1871635461]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=1392184704]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 6, 0)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="ActiveWorld" type="Node3D" parent="." unique_id=1214281681]
+
+[node name="PracticeGround" parent="ActiveWorld" unique_id=430140652 instance=ExtResource("2_practice_ground")]
+
+[node name="Player" parent="." unique_id=1799823721 instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1286347465]
+layer = 5
+
+[node name="SaveButton" parent="HUD" unique_id=1838864394 instance=ExtResource("3_save_button")]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 128.0
+offset_bottom = 52.0

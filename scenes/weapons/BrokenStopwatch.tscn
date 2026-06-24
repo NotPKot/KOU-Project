@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/broken_stopwatch_weapon.gd" id="1_broken_stopwatch"]
+
+[node name="BrokenStopwatch" type="Node"]
+script = ExtResource("1_broken_stopwatch")
