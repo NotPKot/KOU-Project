@@ -61,14 +61,6 @@ func _input(event: InputEvent) -> void:
 		else:
 			_on_mobility_released()
 		get_viewport().set_input_as_handled()
-		return
-
-	if event.is_action_pressed("mobility"):
-		_on_mobility_pressed()
-		get_viewport().set_input_as_handled()
-	if event.is_action_released("mobility"):
-		_on_mobility_released()
-		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
