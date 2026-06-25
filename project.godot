@@ -47,6 +47,10 @@ manual_save={
 ]
 }
 
+[autoload]
+
+MusicManager="*res://scripts/audio/music_manager.gd"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
