@@ -50,6 +50,27 @@ func _ready() -> void:
 	_apply_camera_rotation()
 
 
+func _input(event: InputEvent) -> void:
+	if _input_locked or _aim_locked:
+		return
+
+	var key_event: InputEventKey = event as InputEventKey
+	if key_event != null and (key_event.keycode == KEY_SHIFT or key_event.physical_keycode == KEY_SHIFT):
+		if key_event.pressed:
+			_on_mobility_pressed()
+		else:
+			_on_mobility_released()
+		get_viewport().set_input_as_handled()
+		return
+
+	if event.is_action_pressed("mobility"):
+		_on_mobility_pressed()
+		get_viewport().set_input_as_handled()
+	if event.is_action_released("mobility"):
+		_on_mobility_released()
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _input_locked:
 		return
@@ -70,12 +91,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			deg_to_rad(max_pitch_degrees)
 		)
 		_apply_camera_rotation()
-
-	if event.is_action_pressed("mobility"):
-		_on_mobility_pressed()
-
-	if event.is_action_released("mobility"):
-		_on_mobility_released()
 
 
 func _physics_process(delta: float) -> void:
