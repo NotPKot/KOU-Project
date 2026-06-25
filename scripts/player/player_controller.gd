@@ -14,6 +14,9 @@ const BROKEN_STOPWATCH_SCENE := preload("res://scenes/weapons/BrokenStopwatch.ts
 @export var temporal_impulse_air_acceleration: float = 14.0
 @export var temporal_impulse_gravity_scale: float = 0.45
 
+@export_group("Jump")
+@export var jump_velocity: float = 8.5
+
 @export_group("Camera")
 @export_range(0.0005, 0.01, 0.0005) var mouse_sensitivity: float = 0.003
 @export var min_pitch_degrees: float = -55.0
@@ -30,6 +33,7 @@ var _aim_locked: bool = false
 var _mouse_weapon: Node = null
 var _air_control_timer: float = 0.0
 var _music_bpm: float = 0.0
+var _can_jump: bool = false
 
 
 func _ready() -> void:
@@ -95,6 +99,9 @@ func _physics_process(delta: float) -> void:
 		var gravity_scale := temporal_impulse_gravity_scale if _air_control_timer > 0.0 and velocity.y < 0.0 else 1.0
 		velocity.y = max(velocity.y - gravity * gravity_scale * delta, -terminal_velocity)
 
+	if _can_jump and is_on_floor() and Input.is_action_just_pressed("ui_accept"):
+		velocity.y = jump_velocity
+
 	move_and_slide()
 	_face_motion_direction(delta)
 
@@ -149,6 +156,10 @@ func set_music_bpm(bpm: float) -> void:
 	_music_bpm = bpm
 	if _mouse_weapon != null and _mouse_weapon.has_method("set_music_bpm"):
 		_mouse_weapon.set_music_bpm(bpm)
+
+
+func enable_jump() -> void:
+	_can_jump = true
 
 
 func apply_temporal_impulse() -> void:
