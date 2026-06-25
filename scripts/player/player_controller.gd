@@ -1,10 +1,5 @@
 extends CharacterBody3D
 
-const BROKEN_STOPWATCH_SCENE := preload("res://scenes/weapons/BrokenStopwatch.tscn")
-const KATANA_SCENE := preload("res://scripts/weapons/katana.gd")
-const DASH_SCENE := preload("res://scripts/player/dash.gd")
-const GRAPPLING_HOOK_SCENE := preload("res://scripts/player/grappling_hook.gd")
-const TELEPORT_SCENE := preload("res://scripts/player/teleport.gd")
 
 @export_group("Movement")
 @export var walk_speed: float = 5.0
@@ -37,6 +32,8 @@ var mouse_weapon_id: StringName = &""
 var mobility_skill_id: StringName = &""
 var _camera_yaw: float = 0.0
 var _camera_pitch: float = deg_to_rad(-14.0)
+var _min_pitch_rad: float
+var _max_pitch_rad: float
 var _input_locked: bool = false
 var _aim_locked: bool = false
 var _mouse_weapon: Node = null
@@ -44,11 +41,10 @@ var _dash: Dash = null
 var _hook: GrapplingHook = null
 var _teleport: Teleport = null
 var _air_control_timer: float = 0.0
-var _music_bpm: float = 0.0
 var _can_jump: bool = false
 var hp: int
 var _parry_window: float = 0.0
-var _last_hit_time: float = -20.0
+var _last_hit_msec: int = -20000
 var _regen_timer: float = 0.0
 
 
@@ -57,6 +53,8 @@ func _ready() -> void:
 	add_to_group("player")
 	add_to_group("saveable")
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	_min_pitch_rad = deg_to_rad(min_pitch_degrees)
+	_max_pitch_rad = deg_to_rad(max_pitch_degrees)
 	_apply_camera_rotation()
 
 
@@ -77,11 +75,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _input_locked:
 		return
 
-	if event.is_action_pressed("ui_cancel"):
-		var captured: bool = Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if captured else Input.MOUSE_MODE_CAPTURED)
-		return
-
 	if _aim_locked:
 		return
 
@@ -89,8 +82,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_camera_yaw -= event.relative.x * mouse_sensitivity
 		_camera_pitch = clamp(
 			_camera_pitch - event.relative.y * mouse_sensitivity,
-			deg_to_rad(min_pitch_degrees),
-			deg_to_rad(max_pitch_degrees)
+			_min_pitch_rad,
+			_max_pitch_rad
 		)
 		_apply_camera_rotation()
 
@@ -169,8 +162,7 @@ func _process(delta: float) -> void:
 	if _parry_window > 0.0:
 		_parry_window = maxf(_parry_window - delta, 0.0)
 
-	var time_since_hit: float = Time.get_ticks_msec() / 1000.0 - _last_hit_time
-	if hp < max_hp and time_since_hit >= 10.0:
+	if hp < max_hp and (Time.get_ticks_msec() - _last_hit_msec) >= 10000:
 		_regen_timer += delta
 		if _regen_timer >= 5.0:
 			_regen_timer = 0.0
@@ -183,7 +175,7 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		return
 
 	hp -= amount
-	_last_hit_time = Time.get_ticks_msec() / 1000.0
+	_last_hit_msec = Time.get_ticks_msec()
 	_regen_timer = 0.0
 	if hp <= 0:
 		hp = 0
@@ -229,6 +221,10 @@ func set_aim_locked(is_locked: bool) -> void:
 	_aim_locked = is_locked
 
 
+func set_parry_window(duration: float) -> void:
+	_parry_window = duration
+
+
 func set_mouse_weapon(weapon_id: StringName) -> void:
 	mouse_weapon_id = weapon_id
 	_equip_mouse_weapon(weapon_id)
@@ -241,15 +237,15 @@ func set_mobility_skill(skill_id: StringName) -> void:
 
 	match skill_id:
 		&"dash":
-			_dash = DASH_SCENE.new()
+			_dash = load("res://scripts/player/dash.gd").new()
 			_dash.setup(self)
 			add_child(_dash)
 		&"grappling_hook":
-			_hook = GRAPPLING_HOOK_SCENE.new()
+			_hook = load("res://scripts/player/grappling_hook.gd").new()
 			_hook.setup(self, _camera)
 			add_child(_hook)
 		&"teleport":
-			_teleport = TELEPORT_SCENE.new()
+			_teleport = load("res://scripts/player/teleport.gd").new()
 			_teleport.setup(self)
 			add_child(_teleport)
 
@@ -312,12 +308,6 @@ func _raycast_aim(from: Vector3, forward: Vector3, max_dist: float) -> Vector3:
 	return result["position"]
 
 
-func set_music_bpm(bpm: float) -> void:
-	_music_bpm = bpm
-	if _mouse_weapon != null and _mouse_weapon.has_method("set_music_bpm"):
-		_mouse_weapon.set_music_bpm(bpm)
-
-
 func enable_jump() -> void:
 	_can_jump = true
 
@@ -334,13 +324,13 @@ func get_save_data() -> Dictionary:
 		"camera_pitch": _camera_pitch,
 		"mouse_weapon_id": String(mouse_weapon_id),
 		"mobility_skill_id": String(mobility_skill_id),
-		"music_bpm": _music_bpm,
 	}
 
 
 func apply_save_data(data: Dictionary) -> void:
-	if data.has("global_position"):
-		global_position = _array_to_vector3(data["global_position"], global_position)
+	var pos_data = data.get("global_position")
+	if pos_data != null:
+		global_position = _array_to_vector3(pos_data, global_position)
 
 	_camera_yaw = float(data.get("camera_yaw", _camera_yaw))
 	_camera_pitch = float(data.get("camera_pitch", _camera_pitch))
@@ -354,9 +344,6 @@ func apply_save_data(data: Dictionary) -> void:
 	if saved_mobility != &"":
 		set_mobility_skill(saved_mobility)
 
-	_music_bpm = float(data.get("music_bpm", _music_bpm))
-	if _music_bpm > 0.0 and _mouse_weapon != null and _mouse_weapon.has_method("set_music_bpm"):
-		_mouse_weapon.set_music_bpm(_music_bpm)
 
 
 func _equip_mouse_weapon(weapon_id: StringName) -> void:
@@ -368,13 +355,11 @@ func _equip_mouse_weapon(weapon_id: StringName) -> void:
 
 	match weapon_id:
 		&"broken_stopwatch":
-			_mouse_weapon = BROKEN_STOPWATCH_SCENE.instantiate()
+			_mouse_weapon = load("res://scenes/weapons/BrokenStopwatch.tscn").instantiate()
 			add_child(_mouse_weapon)
 			_mouse_weapon.equip(self)
-			if _music_bpm > 0.0 and _mouse_weapon.has_method("set_music_bpm"):
-				_mouse_weapon.set_music_bpm(_music_bpm)
 		&"katana":
-			_mouse_weapon = KATANA_SCENE.new()
+			_mouse_weapon = load("res://scripts/weapons/katana.gd").new()
 			add_child(_mouse_weapon)
 			_mouse_weapon.equip(self)
 		_:			

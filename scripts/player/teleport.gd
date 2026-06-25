@@ -25,10 +25,14 @@ var _ghost: MeshInstance3D       = null
 var _ring: MeshInstance3D        = null
 var _mat_ghost: StandardMaterial3D = null
 var _mat_ring: StandardMaterial3D  = null
+var _aim_query: PhysicsRayQueryParameters3D
+var _floor_query: PhysicsRayQueryParameters3D
 
 
 func setup(player: CharacterBody3D) -> void:
 	_player = player
+	_aim_query = PhysicsRayQueryParameters3D.new()
+	_floor_query = PhysicsRayQueryParameters3D.new()
 	_build_indicator()
 
 
@@ -50,12 +54,11 @@ func update_aim(cam_pos: Vector3, cam_fwd: Vector3) -> void:
 	var found_pos: Vector3
 	var valid: bool
 
-	var query := PhysicsRayQueryParameters3D.new()
-	query.from           = cam_pos
-	query.to             = cam_pos + cam_fwd * max_distance
-	query.collision_mask = 1
-	query.exclude        = [_player.get_rid()]
-	var hit := space.intersect_ray(query)
+	_aim_query.from           = cam_pos
+	_aim_query.to             = cam_pos + cam_fwd * max_distance
+	_aim_query.collision_mask = 1
+	_aim_query.exclude        = [_player.get_rid()]
+	var hit := space.intersect_ray(_aim_query)
 
 	if hit.is_empty():
 		found_pos = _find_floor(cam_pos + cam_fwd * max_distance, space)
@@ -122,12 +125,11 @@ func _process(delta: float) -> void:
 
 
 func _find_floor(from_pos: Vector3, space: PhysicsDirectSpaceState3D) -> Vector3:
-	var q := PhysicsRayQueryParameters3D.new()
-	q.from           = from_pos + Vector3.UP * 0.5
-	q.to             = from_pos + Vector3.DOWN * 8.0
-	q.collision_mask = 1
-	q.exclude        = [_player.get_rid()]
-	var r := space.intersect_ray(q)
+	_floor_query.from           = from_pos + Vector3.UP * 0.5
+	_floor_query.to             = from_pos + Vector3.DOWN * 8.0
+	_floor_query.collision_mask = 1
+	_floor_query.exclude        = [_player.get_rid()]
+	var r := space.intersect_ray(_floor_query)
 	if r.is_empty():
 		return Vector3.ZERO
 	if (r["normal"] as Vector3).dot(Vector3.UP) < 0.5:

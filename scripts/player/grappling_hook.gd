@@ -28,11 +28,13 @@ var _cool_timer: float = 0.0
 var _line: MeshInstance3D = null
 var _line_mesh: ImmediateMesh = null
 var _camera: Camera3D = null
+var _gravity: float = 9.8
 
 
 func setup(player: CharacterBody3D, camera: Camera3D = null) -> void:
 	_player = player
 	_camera = camera
+	_gravity = absf(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
 	_build_rope_visual()
 
 
@@ -138,8 +140,7 @@ func _tick_swing(delta: float) -> void:
 
 	_player.velocity = radial_vel + tangential_vel
 
-	var gravity: float = absf(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
-	_player.velocity += Vector3.DOWN * gravity * delta
+	_player.velocity += Vector3.DOWN * _gravity * delta
 
 	_player.move_and_slide()
 

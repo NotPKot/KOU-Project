@@ -5,11 +5,15 @@ const CENTER_DEADZONE := 28.0
 var highlighted_direction: String = ""
 var selected_sequence: PackedStringArray = PackedStringArray()
 var cursor_offset: Vector2 = Vector2.ZERO
+var _font: Font
+var _arrow_font_size: int = 34
+var _seq_font_size: int = 22
 
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(320, 320)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_font = get_theme_default_font()
 
 
 func set_rift_state(direction: String, sequence: PackedStringArray, offset: Vector2) -> void:
@@ -70,22 +74,18 @@ func _draw_sector(direction: String, points: PackedVector2Array, base_color: Col
 
 
 func _draw_arrow(text: String, position: Vector2) -> void:
-	var font: Font = get_theme_default_font()
-	var font_size: int = 34
-	var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var text_size: Vector2 = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _arrow_font_size)
 	var color: Color = Color(0.88, 0.96, 1.0, 1.0)
-	draw_string(font, position - text_size * 0.5, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+	draw_string(_font, position - text_size * 0.5, text, HORIZONTAL_ALIGNMENT_LEFT, -1, _arrow_font_size, color)
 
 
 func _draw_sequence(position: Vector2) -> void:
-	var font: Font = get_theme_default_font()
-	var font_size: int = 22
 	var text: String = _sequence_to_arrows(selected_sequence)
 	if text.is_empty():
 		text = "RIFT"
 
-	var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-	draw_string(font, position - Vector2(text_size.x * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.7, 0.95, 1.0, 1.0))
+	var text_size: Vector2 = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _seq_font_size)
+	draw_string(_font, position - Vector2(text_size.x * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _seq_font_size, Color(0.7, 0.95, 1.0, 1.0))
 
 
 func _sequence_to_arrows(sequence: PackedStringArray) -> String:

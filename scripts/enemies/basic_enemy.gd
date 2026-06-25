@@ -29,6 +29,8 @@ var _fist_idle_color: Color = Color(0.9, 0.75, 0.7, 1.0)
 var _body_base_color: Color = Color(0.55, 0.27, 0.07, 1.0)
 var _tension_registered: bool = false
 var _sight_loss_timer: float = 0.0
+var _can_see_cache: bool = false
+var _can_see_frame: int = -1
 var _effects: Dictionary = {}
 
 @onready var _visual: Node3D = $Visual
@@ -63,11 +65,20 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+func _can_see_player_cached() -> bool:
+	var frame := Engine.get_process_frames()
+	if frame == _can_see_frame:
+		return _can_see_cache
+	_can_see_frame = frame
+	_can_see_cache = _can_see_player()
+	return _can_see_cache
+
+
 func _update_vision(delta: float) -> void:
 	if _player == null:
 		return
 
-	var can_see := _can_see_player()
+	var can_see := _can_see_player_cached()
 
 	if can_see:
 		_sight_loss_timer = 0.0
@@ -116,11 +127,11 @@ func _check_transitions() -> void:
 
 	match _state:
 		State.IDLE:
-			if _can_see_player():
+			if _can_see_player_cached():
 				_change_state(State.CHASING)
 
 		State.CHASING:
-			if not _can_see_player() and _sight_loss_timer >= lose_sight_time:
+			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
 				_change_state(State.IDLE)
 			elif dist < attack_range:
 				_change_state(State.CHARGING)

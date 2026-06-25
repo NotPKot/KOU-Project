@@ -23,9 +23,9 @@ func fire(camera_forward: Vector3) -> void:
 	if _cool_timer > 0.0 or is_dashing or _player == null:
 		return
 
-	_direction = camera_forward.normalized()
+	_direction = camera_forward
 	if _direction.length_squared() < 0.001:
-		_direction = _player.global_transform.basis.z.normalized()
+		_direction = -_player.global_transform.basis.z
 
 	is_dashing = true
 	_timer = dash_duration

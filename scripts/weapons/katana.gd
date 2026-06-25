@@ -50,7 +50,7 @@ func _activate_parry() -> void:
 	if _parry_cooldown > 0.0:
 		return
 	is_parrying = true
-	_player._parry_window = PARRY_DURATION
+	_player.set_parry_window(PARRY_DURATION)
 	_parry_cooldown = PARRY_COOLDOWN + PARRY_DURATION
 
 	if _katana_mesh != null:

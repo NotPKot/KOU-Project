@@ -9,6 +9,7 @@
 [ext_resource type="Script" uid="uid://cdw6nkta1uygo" path="res://scripts/main/main.gd" id="7_main_script"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/CalmyrEnemy.tscn" id="8_calmyr"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HealthBar.tscn" id="9_health_bar"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="10_pause_menu"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -56,3 +57,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.30845, 0, 14.01933)
 
 [node name="CalmyrEnemy" parent="." unique_id=1165541328 instance=ExtResource("8_calmyr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45.30845, 0, 14.01933)
+
+[node name="PauseMenu" parent="." instance=ExtResource("10_pause_menu")]

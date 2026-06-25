@@ -1,23 +1,17 @@
 extends Node
 
 const RIFT_DIAMOND_CONTROL := preload("res://scripts/ui/rift_diamond_control.gd")
-const RHYTHM_BAR := preload("res://scripts/ui/rhythm_bar.gd")
 const SLASH_EFFECT_SCENE := preload("res://scenes/effects/combat/SlashEffect.tscn")
 
 signal rift_cast(rift_id: StringName)
 signal sequence_failed(sequence: PackedStringArray)
 
 const MAX_RIFT_CHARGES := 3
-const PERFECTS_PER_CHARGE := 4
 const MAX_SEQUENCE_LENGTH := 4
 const RIFT_TIME_SCALE := 0.28
 const RIFT_CURSOR_RADIUS := 120.0
 const RIFT_CENTER_DEADZONE := 28.0
-
-const REFERENCE_BPM := 120.0
 const BASE_SLASH_DAMAGE := 10.0
-const PERFECT_DAMAGE_MULTIPLIER := 1.25
-const MIN_ATTACK_COOLDOWN_MSEC := 200
 
 const RIFTS := {
 	"up,down": {"id": &"temporal_impulse", "cost": 1, "name": "Impulso Temporal"},
@@ -27,16 +21,14 @@ const RIFTS := {
 	"down,up,down,up": {"id": &"kinetic_overload", "cost": 3, "name": "Sobrecarga Cinetica"},
 }
 
-@export var beat_period: float = 0.72
-@export var perfect_window: float = 0.11
+@export var damage_per_charge: float = 30.0
+@export var attack_cooldown_msec: int = 400
 @export var rift_cancel_cooldown: float = 4.0
-@export var use_music_bpm: bool = true
 
-# -- CRONOMETRO SLASH TUNING: ajusta aqui rango, altura, escala y cadencia visual del golpe basico.
+# -- CRONOMETRO SLASH TUNING
 @export var slash_spawn_height: float = 1.25
 @export var slash_forward_offset: float = 0.75
 @export var slash_base_range: float = 1.55
-@export var slash_perfect_range_bonus: float = 0.18
 @export var slash_scale: float = 1.0
 @export var slash_variant_cycle: bool = true
 @export var slash_random_variants: bool = false
@@ -48,12 +40,11 @@ const SLASH_VARIANTS := [
 ]
 
 var _owner_player: CharacterBody3D = null
+var _camera_pivot: Node3D = null
 var _enabled := false
-var _beat_origin_msec := 0
-var _perfect_chain := 0
 var _rift_charges := 0
-var _grace_notes := 0
-var _last_note_index := -1
+var _accumulated_damage: float = 0.0
+var _hud_dirty: bool = true
 var _rift_open := false
 var _rift_cooldown_until_msec := 0
 var _mouse_mode_before_rift := Input.MOUSE_MODE_CAPTURED
@@ -61,7 +52,6 @@ var _sequence := PackedStringArray()
 var _rift_cursor_offset := Vector2.ZERO
 var _hovered_direction := ""
 var _hud: CanvasLayer = null
-var _rhythm_bar: RhythmBar = null
 var _charge_label: Label = null
 var _rift_panel: Control = null
 var _rift_diamond: Control = null
@@ -72,24 +62,10 @@ var _last_attack_msec: int = 0
 
 func equip(owner_player: CharacterBody3D) -> void:
 	_owner_player = owner_player
+	_camera_pivot = _owner_player.get_node("CameraPivot") as Node3D
 	_enabled = true
-	_beat_origin_msec = Time.get_ticks_msec()
-	_last_note_index = _get_note_index()
 	_build_hud()
-	_rhythm_bar.start(beat_period)
-	_update_hud()
-
-
-func set_music_bpm(bpm: float) -> void:
-	if not use_music_bpm or bpm <= 0.0:
-		return
-
-	beat_period = 60.0 / bpm
-	_beat_origin_msec = Time.get_ticks_msec()
-	_last_note_index = _get_note_index()
-	if _rhythm_bar != null:
-		_rhythm_bar.start(beat_period)
-	print("Cronometro Roto synced to ", snappedf(bpm, 0.01), " BPM")
+	_hud_dirty = true
 
 
 func unequip() -> void:
@@ -107,9 +83,9 @@ func _exit_tree() -> void:
 func _process(_delta: float) -> void:
 	if not _enabled:
 		return
-
-	_update_grace_notes()
-	_update_hud()
+	if _hud_dirty:
+		_update_hud()
+		_hud_dirty = false
 
 
 func _input(event: InputEvent) -> void:
@@ -129,10 +105,10 @@ func _input(event: InputEvent) -> void:
 	if mouse_button != null:
 		if mouse_button.button_index == MOUSE_BUTTON_LEFT and mouse_button.pressed and not _rift_open:
 			var now: int = Time.get_ticks_msec()
-			if now - _last_attack_msec < MIN_ATTACK_COOLDOWN_MSEC:
+			if now - _last_attack_msec < attack_cooldown_msec:
 				return
 			_last_attack_msec = now
-			_attack_on_beat()
+			_basic_attack()
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
 			if mouse_button.pressed:
@@ -142,66 +118,37 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _attack_on_beat() -> void:
-	var offset := _get_nearest_beat_offset()
-	var is_perfect: bool = absf(offset) <= perfect_window
-	_spawn_basic_slash(is_perfect)
-
-	if is_perfect:
-		_perfect_chain += 1
-		if _perfect_chain % PERFECTS_PER_CHARGE == 0:
-			_rift_charges = min(_rift_charges + 1, MAX_RIFT_CHARGES)
-		_rhythm_bar.flash_hit(true)
-		_status_label.text = "Perfecto"
-		print("Cronometro Roto: golpe sincronizado. Cadena ", _perfect_chain)
-		return
-
-	if _grace_notes > 0 or _rift_open:
-		_rhythm_bar.flash_hit(false)
-		_status_label.text = "Reincorporacion"
-		print("Cronometro Roto: fallo perdonado por reincorporacion.")
-		return
-
-	_perfect_chain = 0
-	_rhythm_bar.flash_hit(false)
-	_status_label.text = "Fuera de ritmo"
-	print("Cronometro Roto: sincronizacion rota.")
+func _basic_attack() -> void:
+	_spawn_basic_slash()
+	_status_label.text = "Golpe"
 
 
-func _spawn_basic_slash(is_perfect: bool) -> void:
+func _spawn_basic_slash() -> void:
 	if _owner_player == null:
 		return
 
 	var variant: Dictionary = _get_next_slash_variant()
-	var camera_pivot: Node3D = _owner_player.get_node("CameraPivot") as Node3D
-	var cam_basis: Basis = camera_pivot.global_transform.basis
+	var cam_basis: Basis = _camera_pivot.global_transform.basis
 	var forward: Vector3 = Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
 
 	var slash: Node3D = SLASH_EFFECT_SCENE.instantiate() as Node3D
 	if slash == null:
 		return
 
-	var calculated_damage: int = _calculate_damage(is_perfect)
-	slash.set("damage", calculated_damage)
+	slash.damage = BASE_SLASH_DAMAGE
 	slash.global_position = _owner_player.global_position + forward * slash_forward_offset
 	var yaw: float = atan2(-forward.x, -forward.z) + deg_to_rad(float(variant["yaw"]))
 	var roll: float = deg_to_rad(float(variant["roll"]))
 	var range_value: float = slash_base_range * float(variant["range"])
-	if is_perfect:
-		range_value += slash_perfect_range_bonus
 
 	if slash.has_method("setup"):
 		slash.setup(range_value, slash_spawn_height, yaw, roll, slash_scale)
 
 	get_tree().current_scene.add_child(slash)
 
-
-func _calculate_damage(is_perfect: bool) -> int:
-	var current_bpm := 60.0 / beat_period if beat_period > 0.0 else REFERENCE_BPM
-	var raw := BASE_SLASH_DAMAGE * (REFERENCE_BPM / current_bpm)
-	if is_perfect:
-		raw *= PERFECT_DAMAGE_MULTIPLIER
-	return maxi(1, roundi(raw))
+	var hitbox: Area3D = slash.get_node("Hitbox")
+	if hitbox != null:
+		hitbox.body_entered.connect(_on_slash_hit.bind(slash.damage))
 
 
 func _get_next_slash_variant() -> Dictionary:
@@ -213,6 +160,20 @@ func _get_next_slash_variant() -> Dictionary:
 		_slash_index = (_slash_index + 1) % SLASH_VARIANTS.size()
 
 	return variant
+
+
+func _on_slash_hit(body: Node, damage: int) -> void:
+	if body.has_method("take_damage"):
+		_add_damage(damage)
+
+
+func _add_damage(amount: float) -> void:
+	_accumulated_damage += amount
+	while _accumulated_damage >= damage_per_charge:
+		_accumulated_damage -= damage_per_charge
+		_rift_charges = min(_rift_charges + 1, MAX_RIFT_CHARGES)
+		_hud_dirty = true
+		_status_label.text = "Carga RIFT +1"
 
 
 func _try_open_rift() -> void:
@@ -272,7 +233,7 @@ func _execute_sequence() -> void:
 		return
 
 	_rift_charges -= cost
-	_grace_notes = 3
+	_hud_dirty = true
 	_status_label.text = str(rift["name"])
 	var rift_id: StringName = rift["id"]
 	_apply_rift_effect(rift_id)
@@ -283,8 +244,8 @@ func _execute_sequence() -> void:
 func _apply_sequence_failure() -> void:
 	if _rift_charges > 0:
 		_rift_charges -= 1
+		_hud_dirty = true
 
-	_perfect_chain = 0
 	_status_label.text = "Falla critica"
 	sequence_failed.emit(_sequence)
 	print("Cronometro Roto: falla critica. Dano al usuario pendiente: 25% vida maxima.")
@@ -315,10 +276,6 @@ func _close_rift(successful_cast: bool) -> void:
 
 	if _owner_player != null and _owner_player.has_method("set_aim_locked"):
 		_owner_player.set_aim_locked(false)
-
-	if successful_cast:
-		_beat_origin_msec = Time.get_ticks_msec()
-		_last_note_index = _get_note_index()
 
 
 func _read_rift_direction(mouse_position: Vector2) -> void:
@@ -374,64 +331,11 @@ func _direction_from_vector(vector: Vector2) -> String:
 	return "down" if vector.y > 0.0 else "up"
 
 
-func _sequence_to_arrows(sequence: PackedStringArray) -> String:
-	var output := PackedStringArray()
-	for direction in sequence:
-		match direction:
-			"up":
-				output.append("^")
-			"down":
-				output.append("v")
-			"left":
-				output.append("<")
-			"right":
-				output.append(">")
-	return " ".join(output)
-
-
-func _get_note_index() -> int:
-	return int(floor(_get_elapsed_seconds() / _get_current_beat_period()))
-
-
-func _get_elapsed_seconds() -> float:
-	return float(Time.get_ticks_msec() - _beat_origin_msec) / 1000.0
-
-
-func _get_current_beat_period() -> float:
-	if _rift_open:
-		return beat_period / RIFT_TIME_SCALE
-
-	return beat_period
-
-
-func _get_nearest_beat_offset() -> float:
-	var period := _get_current_beat_period()
-	var elapsed := _get_elapsed_seconds()
-	var nearest_beat_time := roundf(elapsed / period) * period
-	return elapsed - nearest_beat_time
-
-
-func _update_grace_notes() -> void:
-	if _grace_notes <= 0:
-		return
-
-	var note_index := _get_note_index()
-	if note_index == _last_note_index:
-		return
-
-	_grace_notes = max(_grace_notes - (note_index - _last_note_index), 0)
-	_last_note_index = note_index
-
-
 func _update_hud() -> void:
 	if _hud == null:
 		return
 
-	_charge_label.text = _charges_to_text()
-
-
-func _charges_to_text() -> String:
-	return "RIFT " + str(_rift_charges) + "/" + str(MAX_RIFT_CHARGES)
+	_charge_label.text = "RIFT " + str(_rift_charges) + "/" + str(MAX_RIFT_CHARGES)
 
 
 func _build_hud() -> void:
@@ -445,23 +349,6 @@ func _build_hud() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.add_child(root)
-
-	var bar_container := Control.new()
-	bar_container.name = "RhythmBarContainer"
-	bar_container.anchor_left = 0.5
-	bar_container.anchor_top = 1.0
-	bar_container.anchor_right = 0.5
-	bar_container.anchor_bottom = 1.0
-	bar_container.offset_left = -140.0
-	bar_container.offset_top = -60.0
-	bar_container.offset_right = 140.0
-	bar_container.offset_bottom = -30.0
-	root.add_child(bar_container)
-
-	_rhythm_bar = RhythmBar.new()
-	_rhythm_bar.name = "RhythmBar"
-	_rhythm_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bar_container.add_child(_rhythm_bar)
 
 	_charge_label = Label.new()
 	_charge_label.name = "ChargeLabel"

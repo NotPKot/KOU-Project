@@ -26,6 +26,8 @@ var _body_material: StandardMaterial3D
 var _body_base_color: Color = Color(0.6, 0.15, 0.25, 1.0)
 var _tension_registered: bool = false
 var _sight_loss_timer: float = 0.0
+var _can_see_cache: bool = false
+var _can_see_frame: int = -1
 var _track_target: Vector3 = Vector3.ZERO
 var _indicator_mesh: MeshInstance3D = null
 var _indicator_material: StandardMaterial3D = null
@@ -67,10 +69,19 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+func _can_see_player_cached() -> bool:
+	var frame := Engine.get_process_frames()
+	if frame == _can_see_frame:
+		return _can_see_cache
+	_can_see_frame = frame
+	_can_see_cache = _can_see_player()
+	return _can_see_cache
+
+
 func _update_vision(delta: float) -> void:
 	if _player == null:
 		return
-	var can_see := _can_see_player()
+	var can_see := _can_see_player_cached()
 	if can_see:
 		_sight_loss_timer = 0.0
 		if not _tension_registered:
@@ -117,11 +128,11 @@ func _check_transitions() -> void:
 
 	match _state:
 		State.IDLE:
-			if _can_see_player():
+			if _can_see_player_cached():
 				_change_state(State.CHASING)
 
 		State.CHASING:
-			if not _can_see_player() and _sight_loss_timer >= lose_sight_time:
+			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
 				_change_state(State.IDLE)
 			elif _state_elapsed >= chase_duration:
 				_change_state(State.SUBMERGING)
@@ -137,7 +148,7 @@ func _check_transitions() -> void:
 			_track_target = _player.global_position
 			_indicator.global_position = _track_target
 
-			if not _can_see_player() and _sight_loss_timer >= lose_sight_time:
+			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
 				_indicator.visible = false
 				_change_state(State.IDLE)
 			elif _state_elapsed >= track_duration:

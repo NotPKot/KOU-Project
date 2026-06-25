@@ -43,20 +43,25 @@ func _process(delta: float) -> void:
 	if not _running:
 		return
 
+	var needs_redraw := false
+
 	_phase += delta / beat_period
 	if _phase >= 1.0:
 		_phase -= 1.0
 		_pulse_scale = 1.6
+		needs_redraw = true
 		beat_landed.emit()
 
 	_pulse_scale = lerp(_pulse_scale, 1.0, delta * 12.0)
 
 	if _flash_elapsed < _flash_duration:
 		_flash_elapsed += delta
+		needs_redraw = true
 		if _flash_elapsed >= _flash_duration:
 			_flash_color = Color.TRANSPARENT
 
-	queue_redraw()
+	if needs_redraw:
+		queue_redraw()
 
 
 func _draw() -> void:

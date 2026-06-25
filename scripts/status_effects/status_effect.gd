@@ -4,7 +4,7 @@ extends RefCounted
 var effect_name: String
 var duration: float
 var remaining: float
-var target: Node
+var _target_ref: WeakRef
 
 
 func _init(p_name: String, p_duration: float):
@@ -14,7 +14,11 @@ func _init(p_name: String, p_duration: float):
 
 
 func apply(node: Node) -> void:
-	target = node
+	_target_ref = weakref(node)
+
+
+func get_target() -> Node:
+	return _target_ref.get_ref() if _target_ref else null
 
 
 func tick(delta: float) -> bool:
