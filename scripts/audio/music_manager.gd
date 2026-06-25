@@ -106,7 +106,7 @@ func _evaluate_downgrade() -> void:
 
 	if highest == EMusicState.CALM:
 		if _exit_timer.is_stopped() == false:
-			var has_tension_src := _active_sources.has(EMusicState.TENSION) and not _active_sources[EMusicState.TENSION].is_empty()
+			var has_tension_src: bool = _active_sources.has(EMusicState.TENSION) and not _active_sources[EMusicState.TENSION].is_empty()
 			if has_tension_src or _escalation_timer.is_stopped() == false:
 				return
 			if current_state != EMusicState.TENSION:
