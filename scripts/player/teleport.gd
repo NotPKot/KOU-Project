@@ -59,10 +59,10 @@ func fire(camera_position: Vector3, camera_forward: Vector3) -> void:
 
 	is_charging = true
 	_indicator.visible = true
-	_update_target(camera_position, camera_forward)
+	update_aim(camera_position, camera_forward)
 
 
-func _update_target(cam_pos: Vector3, cam_fwd: Vector3) -> void:
+func update_aim(cam_pos: Vector3, cam_fwd: Vector3) -> void:
 	var space: PhysicsDirectSpaceState3D = _player.get_world_3d().direct_space_state
 	if space == null:
 		return

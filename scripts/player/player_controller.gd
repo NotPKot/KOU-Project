@@ -1,6 +1,9 @@
 extends CharacterBody3D
 
 const BROKEN_STOPWATCH_SCENE := preload("res://scenes/weapons/BrokenStopwatch.tscn")
+const DASH_SCENE := preload("res://scripts/player/dash.gd")
+const GRAPPLING_HOOK_SCENE := preload("res://scripts/player/grappling_hook.gd")
+const TELEPORT_SCENE := preload("res://scripts/player/teleport.gd")
 
 @export_group("Movement")
 @export var walk_speed: float = 5.0
@@ -26,11 +29,15 @@ const BROKEN_STOPWATCH_SCENE := preload("res://scenes/weapons/BrokenStopwatch.ts
 @onready var _visual: Node3D = $Visual
 
 var mouse_weapon_id: StringName = &""
+var mobility_skill_id: StringName = &""
 var _camera_yaw: float = 0.0
 var _camera_pitch: float = deg_to_rad(-14.0)
 var _input_locked: bool = false
 var _aim_locked: bool = false
 var _mouse_weapon: Node = null
+var _dash: Dash = null
+var _hook: GrapplingHook = null
+var _teleport: Teleport = null
 var _air_control_timer: float = 0.0
 var _music_bpm: float = 0.0
 var _can_jump: bool = false
@@ -48,7 +55,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed("ui_cancel"):
-		var captured := Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
+		var captured: bool = Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if captured else Input.MOUSE_MODE_CAPTURED)
 		return
 
@@ -63,6 +70,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			deg_to_rad(max_pitch_degrees)
 		)
 		_apply_camera_rotation()
+
+	if event.is_action_pressed("mobility"):
+		_on_mobility_pressed()
+
+	if event.is_action_released("mobility"):
+		_on_mobility_released()
 
 
 func _physics_process(delta: float) -> void:
@@ -103,6 +116,14 @@ func _physics_process(delta: float) -> void:
 		velocity.y = jump_velocity
 
 	move_and_slide()
+
+	if _hook != null:
+		_hook.set_input(input_vector)
+
+	if _teleport != null and _teleport.is_charging:
+		var cam_basis := _camera_pivot.global_transform.basis
+		_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+
 	_face_motion_direction(delta)
 
 
@@ -152,6 +173,85 @@ func set_mouse_weapon(weapon_id: StringName) -> void:
 	print("Mouse weapon selected: ", mouse_weapon_id)
 
 
+func set_mobility_skill(skill_id: StringName) -> void:
+	_clear_mobility_skill()
+	mobility_skill_id = skill_id
+
+	match skill_id:
+		&"dash":
+			_dash = DASH_SCENE.new()
+			_dash.setup(self)
+			add_child(_dash)
+		&"grappling_hook":
+			_hook = GRAPPLING_HOOK_SCENE.new()
+			_hook.setup(self)
+			add_child(_hook)
+		&"teleport":
+			_teleport = TELEPORT_SCENE.new()
+			_teleport.setup(self)
+			add_child(_teleport)
+
+	print("Mobility skill selected: ", mobility_skill_id)
+
+
+func _clear_mobility_skill() -> void:
+	if _dash != null:
+		_dash.queue_free()
+		_dash = null
+	if _hook != null:
+		_hook.queue_free()
+		_hook = null
+	if _teleport != null:
+		_teleport.queue_free()
+		_teleport = null
+	mobility_skill_id = &""
+
+
+func _on_mobility_pressed() -> void:
+	if _input_locked or _aim_locked:
+		return
+
+	var cam_basis := _camera_pivot.global_transform.basis
+	var cam_fwd: Vector3 = -cam_basis.z
+	var cam_pos: Vector3 = _camera_pivot.global_position
+
+	if _dash != null:
+		_dash.fire(cam_fwd)
+	elif _hook != null:
+		var hit := _raycast_aim(cam_pos, cam_fwd, _hook.max_rope_length)
+		_hook.fire(hit)
+	elif _teleport != null:
+		_teleport.fire(cam_pos, cam_fwd)
+
+
+func _on_mobility_released() -> void:
+	if _hook != null:
+		if _hook.is_flying:
+			_hook.cancel_flight()
+		elif _hook.is_attached:
+			_hook.release()
+	elif _teleport != null and _teleport.is_charging:
+		_teleport.release()
+
+
+func _raycast_aim(from: Vector3, forward: Vector3, max_dist: float) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return from + forward * max_dist
+
+	var query := PhysicsRayQueryParameters3D.new()
+	query.from = from
+	query.to = from + forward * max_dist
+	query.collision_mask = 1
+	query.hit_from_inside = true
+
+	var result: Dictionary = space.intersect_ray(query)
+	if result.is_empty():
+		return from + forward * max_dist
+
+	return result["position"]
+
+
 func set_music_bpm(bpm: float) -> void:
 	_music_bpm = bpm
 	if _mouse_weapon != null and _mouse_weapon.has_method("set_music_bpm"):
@@ -173,6 +273,7 @@ func get_save_data() -> Dictionary:
 		"camera_yaw": _camera_yaw,
 		"camera_pitch": _camera_pitch,
 		"mouse_weapon_id": String(mouse_weapon_id),
+		"mobility_skill_id": String(mobility_skill_id),
 		"music_bpm": _music_bpm,
 	}
 
@@ -188,6 +289,10 @@ func apply_save_data(data: Dictionary) -> void:
 	var saved_weapon := StringName(str(data.get("mouse_weapon_id", "")))
 	if saved_weapon != &"":
 		set_mouse_weapon(saved_weapon)
+
+	var saved_mobility := StringName(str(data.get("mobility_skill_id", "")))
+	if saved_mobility != &"":
+		set_mobility_skill(saved_mobility)
 
 	_music_bpm = float(data.get("music_bpm", _music_bpm))
 	if _music_bpm > 0.0 and _mouse_weapon != null and _mouse_weapon.has_method("set_music_bpm"):

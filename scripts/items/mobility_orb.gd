@@ -1,11 +1,5 @@
 extends Area3D
 
-@export var choice_panel_scene: PackedScene
-@export var choices: Array[Dictionary] = [
-	{"id": "katana", "label": "Katana", "description": "Arma rapida de corte."},
-	{"id": "hammer", "label": "Martillo", "description": "Golpes pesados y contundentes."},
-	{"id": "broken_stopwatch", "label": "Cronometro roto", "description": "Manipulacion inestable del tiempo."},
-]
 @export var consume_after_choice: bool = true
 @export var hover_height: float = 0.18
 @export var hover_speed: float = 2.2
@@ -17,6 +11,14 @@ var _is_open: bool = false
 var _base_visual_y: float = 0.0
 var _time: float = 0.0
 var _target: Node = null
+
+const CHOICES: Array[Dictionary] = [
+	{"id": "dash", "label": "Dash", "description": "Desplazamiento rapido en la direccion que miras. Cooldown 2.5s."},
+	{"id": "grappling_hook", "label": "Gancho", "description": "Balanceo con curva y pendulo. Dominio avanzado."},
+	{"id": "teleport", "label": "Teletransporte", "description": "Marca destino mientras sostienes Shift, tp al soltar. Cooldown 8s."},
+]
+
+const CHOICE_PANEL_SCENE := preload("res://scenes/ui/ChoicePanel.tscn")
 
 
 func _ready() -> void:
@@ -31,10 +33,10 @@ func _process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node3D) -> void:
-	if _is_open or choice_panel_scene == null:
+	if _is_open:
 		return
 
-	if not body.has_method("set_mouse_weapon"):
+	if not body.has_method("set_mobility_skill"):
 		return
 
 	_is_open = true
@@ -44,16 +46,16 @@ func _on_body_entered(body: Node3D) -> void:
 	if body.has_method("set_input_locked"):
 		body.set_input_locked(true)
 
-	var panel := choice_panel_scene.instantiate()
+	var panel := CHOICE_PANEL_SCENE.instantiate()
 	get_tree().current_scene.add_child(panel)
 	panel.choice_selected.connect(_on_choice_selected)
-	panel.open(choices, body)
+	panel.open(CHOICES, body)
 
 
 func _on_choice_selected(choice_id: StringName) -> void:
 	if _target != null:
-		if _target.has_method("set_mouse_weapon"):
-			_target.set_mouse_weapon(choice_id)
+		if _target.has_method("set_mobility_skill"):
+			_target.set_mobility_skill(choice_id)
 		if _target.has_method("set_input_locked"):
 			_target.set_input_locked(false)
 

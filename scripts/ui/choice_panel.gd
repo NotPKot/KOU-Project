@@ -39,8 +39,5 @@ func _select_choice(index: int) -> void:
 		return
 
 	var choice_id := StringName(str(_choices[index].get("id", "")))
-	if _target != null and _target.has_method("set_mouse_weapon"):
-		_target.set_mouse_weapon(choice_id)
-
 	choice_selected.emit(choice_id)
 	queue_free()
