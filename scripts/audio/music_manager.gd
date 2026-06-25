@@ -138,7 +138,7 @@ func _on_escalation_timeout() -> void:
 func _on_exit_timeout() -> void:
 	if _has_combat_sources():
 		return
-	var has_tension := _active_sources.has(EMusicState.TENSION) and not _active_sources[EMusicState.TENSION].is_empty()
+	var has_tension: bool = _active_sources.has(EMusicState.TENSION) and not _active_sources[EMusicState.TENSION].is_empty()
 	if has_tension:
 		return
 	_change_state(EMusicState.CALM)
