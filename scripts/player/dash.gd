@@ -43,6 +43,7 @@ func physics_tick(delta: float) -> bool:
 	_timer -= delta
 	if _timer <= 0.0:
 		is_dashing = false
+		_player.velocity = Vector3.ZERO
 		dash_ended.emit()
 		_cool_timer = cooldown
 		return false

@@ -4,6 +4,8 @@
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/BasicEnemy.tscn" id="3_q24mn"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/MobilityOrb.tscn" id="4_gyg6b"]
+[ext_resource type="PackedScene" path="res://scenes/orbs/JumpOrb.tscn" id="5_jump_orb"]
+[ext_resource type="PackedScene" path="res://scenes/orbs/MouseWeaponOrb.tscn" id="6_weapon_orb"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -25,6 +27,7 @@ shadow_enabled = true
 [node name="ActiveWorld" type="Node3D" parent="." unique_id=1214281681]
 
 [node name="PracticeGround" parent="ActiveWorld" unique_id=430140652 instance=ExtResource("2_practice_ground")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
 
 [node name="Player" parent="." unique_id=1799823721 instance=ExtResource("1_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
@@ -38,3 +41,9 @@ script = null
 
 [node name="MobilityOrb" parent="." unique_id=357713030 instance=ExtResource("4_gyg6b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.64292526, 0, -3.7500973)
+
+[node name="JumpOrb" parent="." unique_id=716543214 instance=ExtResource("5_jump_orb")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
+
+[node name="MouseWeaponOrb" parent="." unique_id=964723158 instance=ExtResource("6_weapon_orb")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
