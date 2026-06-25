@@ -5,14 +5,16 @@ signal hooked(hook_point: Vector3)
 signal released(reason: String)
 
 @export var max_rope_length: float = 45.0
-@export var reel_in_speed: float = 12.0
-@export var spring_constant: float = 25.0
+@export var passive_reel_speed: float = 2.0
+@export var active_reel_speed: float = 22.0
+@export var spring_constant: float = 10.0
+@export var spring_force_max: float = 25.0
 @export var tangential_damping: float = 0.05
-@export var swing_strength: float = 18.0
+@export var swing_strength: float = 35.0
 @export var pump_strength: float = 10.0
+@export var max_tangential_speed: float = 40.0
 @export var release_boost: float = 1.15
-@export var retract_mod_strength: float = 6.0
-@export var cooldown: float = 0.4
+@export var cooldown: float = 0.8
 @export var min_release_dist: float = 2.0
 @export var slack_enabled: bool = true
 
@@ -105,7 +107,11 @@ func _tick_swing(delta: float) -> void:
 		release("too_close")
 		return
 
-	rest_length = maxf(rest_length - reel_in_speed * delta, 0.0)
+	var pulling: bool = _input_dir.y < 0.0
+	var pull_amount: float = absf(_input_dir.y) if pulling else 0.0
+
+	var reel_speed: float = passive_reel_speed + active_reel_speed * pull_amount
+	rest_length = maxf(rest_length - reel_speed * delta, 0.5)
 
 	var vel: Vector3 = _player.velocity
 	var radial_speed: float = vel.dot(dir)
@@ -115,7 +121,7 @@ func _tick_swing(delta: float) -> void:
 	var diff: float = dist - rest_length
 	if diff > 0.0 or not slack_enabled:
 		var spring_force: float = diff * spring_constant
-		spring_force = clampf(spring_force, -80.0, 80.0)
+		spring_force = clampf(spring_force, -spring_force_max, spring_force_max)
 		radial_speed += spring_force * delta
 		radial_vel = dir * radial_speed
 
@@ -124,14 +130,13 @@ func _tick_swing(delta: float) -> void:
 	var swing_input: Vector3 = _get_swing_input_dir(dir)
 	tangential_vel += swing_input * swing_strength * delta
 
-	if _input_dir.y < 0.0:
+	if pulling:
 		var forward_pump: Vector3 = _get_forward_tangent(dir)
-		tangential_vel += forward_pump * pump_strength * absf(_input_dir.y) * delta
+		tangential_vel += forward_pump * pump_strength * pull_amount * delta
+
+	tangential_vel = tangential_vel.limit_length(max_tangential_speed)
 
 	_player.velocity = radial_vel + tangential_vel
-
-	if _input_dir.y < 0.0:
-		rest_length = maxf(rest_length - retract_mod_strength * absf(_input_dir.y) * delta, 0.5)
 
 	var gravity: float = absf(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
 	_player.velocity += Vector3.DOWN * gravity * delta
