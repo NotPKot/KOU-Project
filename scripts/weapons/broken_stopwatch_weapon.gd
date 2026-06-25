@@ -157,10 +157,9 @@ func _spawn_basic_slash(is_perfect: bool) -> void:
 		return
 
 	var variant: Dictionary = _get_next_slash_variant()
-	var player_basis: Basis = _owner_player.global_transform.basis
-	var forward: Vector3 = -player_basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
+	var camera_pivot := _owner_player.get_node("CameraPivot") as Node3D
+	var cam_basis := camera_pivot.global_transform.basis
+	var forward := Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
 
 	var slash := SLASH_EFFECT_SCENE.instantiate() as Node3D
 	if slash == null:

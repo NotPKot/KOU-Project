@@ -12,20 +12,26 @@ enum State { IDLE, CHASING, CHARGING, ATTACKING, COOLDOWN }
 @export var attack_cooldown: float = 1.5
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
+@export var max_hp: int = 50
 
+var hp: int
 var _state: State = State.IDLE
 var _state_elapsed: float = 0.0
 var _player: Node = null
 var _left_fist_material: StandardMaterial3D
 var _right_fist_material: StandardMaterial3D
+var _body_material: StandardMaterial3D
 var _fist_idle_color: Color = Color(0.9, 0.75, 0.7, 1.0)
+var _body_base_color: Color = Color(0.55, 0.27, 0.07, 1.0)
 
 @onready var _visual: Node3D = $Visual
+@onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _left_fist: MeshInstance3D = $Visual/LeftFist
 @onready var _right_fist: MeshInstance3D = $Visual/RightFist
 
 
 func _ready() -> void:
+	hp = max_hp
 	add_to_group("enemies")
 	_player = get_tree().get_first_node_in_group("player")
 
@@ -35,6 +41,11 @@ func _ready() -> void:
 	_right_fist_material.albedo_color = _fist_idle_color
 	_left_fist.material_override = _left_fist_material
 	_right_fist.material_override = _right_fist_material
+
+	_body_material = StandardMaterial3D.new()
+	_body_material.albedo_color = _body_base_color
+	_body_material.roughness = 0.85
+	_body_mesh.material_override = _body_material
 
 
 func _physics_process(delta: float) -> void:
@@ -143,3 +154,18 @@ func _process_attack() -> void:
 func _reset_fist_color() -> void:
 	_left_fist_material.albedo_color = _fist_idle_color
 	_right_fist_material.albedo_color = _fist_idle_color
+
+
+func take_damage(amount: int) -> void:
+	hp -= amount
+	_modulate_damage()
+	if hp <= 0:
+		queue_free()
+
+
+func _modulate_damage() -> void:
+	_body_material.albedo_color = Color.WHITE
+	await get_tree().create_timer(0.08).timeout
+	if is_queued_for_deletion():
+		return
+	_body_material.albedo_color = _body_base_color

@@ -23,6 +23,8 @@ radius = 0.4
 height = 1.6
 
 [node name="BasicEnemy" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
 script = ExtResource("1_basic_enemy")
 
 [node name="Visual" type="Node3D" parent="."]

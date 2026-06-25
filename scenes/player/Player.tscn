@@ -21,6 +21,7 @@ radius = 0.42
 size = Vector3(0.55, 0.08, 0.55)
 
 [node name="Player" type="CharacterBody3D"]
+collision_mask = 3
 script = ExtResource("1_player_controller")
 
 [node name="Visual" type="Node3D" parent="."]

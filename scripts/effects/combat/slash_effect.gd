@@ -10,6 +10,9 @@ extends Node3D
 @export var slash_color: Color = Color(0.58, 0.95, 1.0, 0.86)
 @export var core_color: Color = Color(1.0, 1.0, 1.0, 0.95)
 
+@export_group("Damage")
+@export var damage: int = 10
+
 @export_group("Particles And Flash")
 @export var particle_amount: int = 14
 @export var flash_energy: float = 1.8
@@ -19,6 +22,7 @@ extends Node3D
 @onready var _core_mesh: MeshInstance3D = $CoreMesh
 @onready var _particles: GPUParticles3D = $SlashParticles
 @onready var _flash: OmniLight3D = $Flash
+@onready var _hitbox: Area3D = $Hitbox
 
 var _age: float = 0.0
 var _base_scale: Vector3 = Vector3.ONE
@@ -30,6 +34,7 @@ func _ready() -> void:
 	_configure_particles()
 	_flash.light_energy = flash_energy
 	_flash.omni_range = flash_range
+	_hitbox.body_entered.connect(_on_hit)
 
 
 func setup(slash_range: float, height: float, yaw_radians: float, roll_radians: float, scale_multiplier: float) -> void:
@@ -117,3 +122,8 @@ func _configure_particles() -> void:
 	_particles.one_shot = true
 	_particles.explosiveness = 0.85
 	_particles.emitting = true
+
+
+func _on_hit(body: Node) -> void:
+	if body.has_method("take_damage"):
+		body.take_damage(damage)
