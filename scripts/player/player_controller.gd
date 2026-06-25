@@ -33,6 +33,7 @@ var _music_bpm: float = 0.0
 
 
 func _ready() -> void:
+	add_to_group("player")
 	add_to_group("saveable")
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	_apply_camera_rotation()

@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/orbs/MouseWeaponOrb.tscn" id="1_mouse_weapon_orb"]
+[ext_resource type="PackedScene" path="res://scenes/orbs/JumpOrb.tscn" id="4_jump_orb"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(28, 28)
+size = Vector2(60, 60)
 subdivide_width = 1
 subdivide_depth = 1
 
@@ -12,7 +13,7 @@ albedo_color = Color(0.28, 0.35, 0.3, 1)
 roughness = 0.9
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(28, 0.2, 28)
+size = Vector3(60, 0.2, 60)
 
 [sub_resource type="BoxMesh" id="BoxMesh_origin_marker"]
 size = Vector3(0.25, 0.04, 0.25)
@@ -37,3 +38,6 @@ mesh = SubResource("BoxMesh_origin_marker")
 
 [node name="MouseWeaponOrb" parent="PracticePickups" instance=ExtResource("1_mouse_weapon_orb")]
 position = Vector3(3, 0, 0)
+
+[node name="JumpOrb" parent="PracticePickups" instance=ExtResource("4_jump_orb")]
+position = Vector3(-3, 0, 0)

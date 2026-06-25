@@ -1,16 +1,44 @@
 {
-  "res://assets/audio/music/fight/pizza_tower_final_boss.ogg": {
-    "beat_period": 0.301859,
-    "bpm": 198.768,
+  "res://placeholder/audio/music/chill/DELTARUNE-Paradise_-Paradise-N64-Zelda-Majora_s-Mask-Style-Cover.ogg": {
+    "beat_period": 0.441179,
+    "bpm": 135.999,
     "confidence": 0.458,
-    "raw_bpm": 99.384,
+    "raw_bpm": 135.999,
     "source": "offline_autocorrelation_v1"
   },
-  "res://assets/audio/music/fight/necrodancer_matriarch.ogg": {
+  "res://placeholder/audio/music/chill/YTMP3GG_YouTube_Brutal-Orchestra-OST-The-Far-Shore-Area-_Media_20DCCVX-PGg_009_128k.ogg": {
+    "beat_period": 0.406349,
+    "bpm": 147.656,
+    "confidence": 0.579,
+    "raw_bpm": 73.828,
+    "source": "offline_autocorrelation_v1"
+  },
+  "res://placeholder/audio/music/chill/YTMP3GG_YouTube_Inscryption-OST-11-The-Temple-of-Beasts_Media_OlYqw4Kkvj8_006_128k.ogg": {
+    "beat_period": 0.278639,
+    "bpm": 215.332,
+    "confidence": 0.358,
+    "raw_bpm": 107.666,
+    "source": "offline_autocorrelation_v1"
+  },
+  "res://placeholder/audio/music/fight/Rift-of-the-NecroDancer-OST-Matriarch-by-Jules-Conroy_1_.ogg": {
     "beat_period": 0.417959,
     "bpm": 143.555,
     "confidence": 0.541,
     "raw_bpm": 143.555,
+    "source": "offline_autocorrelation_v1"
+  },
+  "res://placeholder/audio/music/fight/YTMP3GG_YouTube_running-through-the-garden-without-a-car_Media_K9Pk68tPoW8_009_128k.ogg": {
+    "beat_period": 0.441179,
+    "bpm": 135.999,
+    "confidence": 0.481,
+    "raw_bpm": 135.999,
+    "source": "offline_autocorrelation_v1"
+  },
+  "res://placeholder/audio/music/fight/froghorn.exe.ogg": {
+    "beat_period": 0.301859,
+    "bpm": 198.768,
+    "confidence": 0.549,
+    "raw_bpm": 99.384,
     "source": "offline_autocorrelation_v1"
   }
 }
