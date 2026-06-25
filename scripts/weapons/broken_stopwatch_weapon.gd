@@ -1,6 +1,7 @@
 extends Node
 
 const RIFT_DIAMOND_CONTROL := preload("res://scripts/ui/rift_diamond_control.gd")
+const RHYTHM_BAR := preload("res://scripts/ui/rhythm_bar.gd")
 const SLASH_EFFECT_SCENE := preload("res://scenes/effects/combat/SlashEffect.tscn")
 
 signal rift_cast(rift_id: StringName)
@@ -60,9 +61,8 @@ var _sequence := PackedStringArray()
 var _rift_cursor_offset := Vector2.ZERO
 var _hovered_direction := ""
 var _hud: CanvasLayer = null
-var _beat_label: Label = null
+var _rhythm_bar: RhythmBar = null
 var _charge_label: Label = null
-var _chain_label: Label = null
 var _rift_panel: Control = null
 var _rift_diamond: Control = null
 var _status_label: Label = null
@@ -76,6 +76,7 @@ func equip(owner_player: CharacterBody3D) -> void:
 	_beat_origin_msec = Time.get_ticks_msec()
 	_last_note_index = _get_note_index()
 	_build_hud()
+	_rhythm_bar.start(beat_period)
 	_update_hud()
 
 
@@ -86,6 +87,8 @@ func set_music_bpm(bpm: float) -> void:
 	beat_period = 60.0 / bpm
 	_beat_origin_msec = Time.get_ticks_msec()
 	_last_note_index = _get_note_index()
+	if _rhythm_bar != null:
+		_rhythm_bar.start(beat_period)
 	print("Cronometro Roto synced to ", snappedf(bpm, 0.01), " BPM")
 
 
@@ -116,16 +119,16 @@ func _input(event: InputEvent) -> void:
 	if _owner_player != null and _owner_player.has_method("is_input_locked") and _owner_player.is_input_locked():
 		return
 
-	var mouse_motion := event as InputEventMouseMotion
+	var mouse_motion: InputEventMouseMotion = event as InputEventMouseMotion
 	if mouse_motion != null and _rift_open:
 		_read_rift_direction(mouse_motion.position)
 		get_viewport().set_input_as_handled()
 		return
 
-	var mouse_button := event as InputEventMouseButton
+	var mouse_button: InputEventMouseButton = event as InputEventMouseButton
 	if mouse_button != null:
 		if mouse_button.button_index == MOUSE_BUTTON_LEFT and mouse_button.pressed and not _rift_open:
-			var now := Time.get_ticks_msec()
+			var now: int = Time.get_ticks_msec()
 			if now - _last_attack_msec < MIN_ATTACK_COOLDOWN_MSEC:
 				return
 			_last_attack_msec = now
@@ -141,23 +144,26 @@ func _input(event: InputEvent) -> void:
 
 func _attack_on_beat() -> void:
 	var offset := _get_nearest_beat_offset()
-	var is_perfect := absf(offset) <= perfect_window
+	var is_perfect: bool = absf(offset) <= perfect_window
 	_spawn_basic_slash(is_perfect)
 
 	if is_perfect:
 		_perfect_chain += 1
 		if _perfect_chain % PERFECTS_PER_CHARGE == 0:
 			_rift_charges = min(_rift_charges + 1, MAX_RIFT_CHARGES)
+		_rhythm_bar.flash_hit(true)
 		_status_label.text = "Perfecto"
 		print("Cronometro Roto: golpe sincronizado. Cadena ", _perfect_chain)
 		return
 
 	if _grace_notes > 0 or _rift_open:
+		_rhythm_bar.flash_hit(false)
 		_status_label.text = "Reincorporacion"
 		print("Cronometro Roto: fallo perdonado por reincorporacion.")
 		return
 
 	_perfect_chain = 0
+	_rhythm_bar.flash_hit(false)
 	_status_label.text = "Fuera de ritmo"
 	print("Cronometro Roto: sincronizacion rota.")
 
@@ -167,15 +173,15 @@ func _spawn_basic_slash(is_perfect: bool) -> void:
 		return
 
 	var variant: Dictionary = _get_next_slash_variant()
-	var camera_pivot := _owner_player.get_node("CameraPivot") as Node3D
-	var cam_basis := camera_pivot.global_transform.basis
-	var forward := Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
+	var camera_pivot: Node3D = _owner_player.get_node("CameraPivot") as Node3D
+	var cam_basis: Basis = camera_pivot.global_transform.basis
+	var forward: Vector3 = Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
 
-	var slash := SLASH_EFFECT_SCENE.instantiate() as Node3D
+	var slash: Node3D = SLASH_EFFECT_SCENE.instantiate() as Node3D
 	if slash == null:
 		return
 
-	var calculated_damage := _calculate_damage(is_perfect)
+	var calculated_damage: int = _calculate_damage(is_perfect)
 	slash.set("damage", calculated_damage)
 	slash.global_position = _owner_player.global_position + forward * slash_forward_offset
 	var yaw: float = atan2(-forward.x, -forward.z) + deg_to_rad(float(variant["yaw"]))
@@ -421,11 +427,7 @@ func _update_hud() -> void:
 	if _hud == null:
 		return
 
-	var note_index := _get_note_index()
-	var note_name := "click" if note_index % 2 == 0 else "clack"
-	_beat_label.text = note_name
 	_charge_label.text = _charges_to_text()
-	_chain_label.text = "x" + str(_perfect_chain)
 
 
 func _charges_to_text() -> String:
@@ -444,32 +446,49 @@ func _build_hud() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.add_child(root)
 
-	var rhythm_panel := PanelContainer.new()
-	rhythm_panel.name = "RhythmPanel"
-	rhythm_panel.position = Vector2(24, 76)
-	rhythm_panel.custom_minimum_size = Vector2(210, 72)
-	root.add_child(rhythm_panel)
+	var bar_container := Control.new()
+	bar_container.name = "RhythmBarContainer"
+	bar_container.anchor_left = 0.5
+	bar_container.anchor_top = 1.0
+	bar_container.anchor_right = 0.5
+	bar_container.anchor_bottom = 1.0
+	bar_container.offset_left = -140.0
+	bar_container.offset_top = -60.0
+	bar_container.offset_right = 140.0
+	bar_container.offset_bottom = -30.0
+	root.add_child(bar_container)
 
-	var rhythm_box := VBoxContainer.new()
-	rhythm_panel.add_child(rhythm_box)
-
-	_beat_label = Label.new()
-	_beat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_beat_label.add_theme_font_size_override("font_size", 22)
-	rhythm_box.add_child(_beat_label)
+	_rhythm_bar = RhythmBar.new()
+	_rhythm_bar.name = "RhythmBar"
+	_rhythm_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bar_container.add_child(_rhythm_bar)
 
 	_charge_label = Label.new()
+	_charge_label.name = "ChargeLabel"
 	_charge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_charge_label.add_theme_font_size_override("font_size", 20)
-	rhythm_box.add_child(_charge_label)
-
-	_chain_label = Label.new()
-	_chain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rhythm_box.add_child(_chain_label)
+	_charge_label.add_theme_font_size_override("font_size", 16)
+	_charge_label.anchor_left = 0.5
+	_charge_label.anchor_top = 1.0
+	_charge_label.anchor_right = 0.5
+	_charge_label.anchor_bottom = 1.0
+	_charge_label.offset_left = -60.0
+	_charge_label.offset_top = -26.0
+	_charge_label.offset_right = 60.0
+	_charge_label.offset_bottom = -6.0
+	root.add_child(_charge_label)
 
 	_status_label = Label.new()
-	_status_label.position = Vector2(24, 152)
-	_status_label.custom_minimum_size = Vector2(320, 28)
+	_status_label.name = "StatusLabel"
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.add_theme_font_size_override("font_size", 16)
+	_status_label.anchor_left = 0.5
+	_status_label.anchor_top = 0.0
+	_status_label.anchor_right = 0.5
+	_status_label.anchor_bottom = 0.0
+	_status_label.offset_left = -160.0
+	_status_label.offset_top = 10.0
+	_status_label.offset_right = 160.0
+	_status_label.offset_bottom = 34.0
 	root.add_child(_status_label)
 
 	_build_rift_panel(root)
