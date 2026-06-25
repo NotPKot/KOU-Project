@@ -4,7 +4,7 @@ extends Node
 signal teleported(position: Vector3)
 signal cancelled
 
-@export var max_distance: float = 20.0
+@export var max_distance: float = 14.0
 @export var cooldown: float = 8.0
 
 var is_charging: bool = false
