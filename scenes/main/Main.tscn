@@ -2,8 +2,6 @@
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
-[ext_resource type="PackedScene" path="res://scenes/ui/SaveButton.tscn" id="3_save_button"]
-
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
 background_color = Color(0.56, 0.68, 0.78, 1)
@@ -31,8 +29,3 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1286347465]
 layer = 5
 
-[node name="SaveButton" parent="HUD" unique_id=1838864394 instance=ExtResource("3_save_button")]
-offset_left = 16.0
-offset_top = 16.0
-offset_right = 128.0
-offset_bottom = 52.0

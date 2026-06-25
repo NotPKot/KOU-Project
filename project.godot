@@ -15,10 +15,6 @@ run/main_scene="res://scenes/main/Main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
-[autoload]
-
-SaveManager="*res://scripts/save/save_manager.gd"
-
 [filesystem]
 
 import/blender/enabled=false
