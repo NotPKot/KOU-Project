@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/orbs/MobilityOrb.tscn" id="4_gyg6b"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/JumpOrb.tscn" id="5_jump_orb"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/MouseWeaponOrb.tscn" id="6_weapon_orb"]
+[ext_resource type="Script" path="res://scripts/main/main.gd" id="7_main_script"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -15,6 +16,7 @@ ambient_light_color = Color(0.75, 0.8, 0.85, 1)
 ambient_light_energy = 0.75
 
 [node name="Main" type="Node3D" unique_id=956873530]
+script = ExtResource("7_main_script")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1871635461]
 environment = SubResource("Environment_main")

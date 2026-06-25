@@ -26,6 +26,7 @@ const TELEPORT_SCENE := preload("res://scripts/player/teleport.gd")
 @export var max_pitch_degrees: float = 18.0
 
 @onready var _camera_pivot: Node3D = $CameraPivot
+@onready var _camera: Camera3D = $CameraPivot/Camera3D
 @onready var _visual: Node3D = $Visual
 
 var mouse_weapon_id: StringName = &""
@@ -204,7 +205,7 @@ func set_mobility_skill(skill_id: StringName) -> void:
 			add_child(_dash)
 		&"grappling_hook":
 			_hook = GRAPPLING_HOOK_SCENE.new()
-			_hook.setup(self)
+			_hook.setup(self, _camera)
 			add_child(_hook)
 		&"teleport":
 			_teleport = TELEPORT_SCENE.new()
@@ -245,11 +246,8 @@ func _on_mobility_pressed() -> void:
 
 
 func _on_mobility_released() -> void:
-	if _hook != null:
-		if _hook.is_flying:
-			_hook.cancel_flight()
-		elif _hook.is_attached:
-			_hook.release()
+	if _hook != null and _hook.is_attached:
+		_hook.release()
 	elif _teleport != null and _teleport.is_charging:
 		_teleport.release()
 
@@ -261,9 +259,10 @@ func _raycast_aim(from: Vector3, forward: Vector3, max_dist: float) -> Vector3:
 
 	var query := PhysicsRayQueryParameters3D.new()
 	query.from = from
-	query.to = from + forward * max_dist
-	query.collision_mask = 1
+	query.to = global_position + forward * max_dist
+	query.collision_mask = 1 | 4
 	query.hit_from_inside = true
+	query.exclude = [get_rid()]
 
 	var result: Dictionary = space.intersect_ray(query)
 	if result.is_empty():

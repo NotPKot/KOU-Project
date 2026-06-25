@@ -4,35 +4,33 @@ extends Node
 signal hooked(hook_point: Vector3)
 signal released(reason: String)
 
-@export var hook_speed: float = 45.0
-@export var max_rope_length: float = 22.0
-@export var min_rope_length: float = 2.5
-@export var rope_stiffness: float = 12.0
-@export var swing_strength: float = 10.0
-@export var lateral_curve: float = 20.0
-@export var release_boost: float = 1.2
+@export var max_rope_length: float = 45.0
+@export var reel_in_speed: float = 12.0
+@export var spring_constant: float = 25.0
+@export var tangential_damping: float = 0.05
+@export var swing_strength: float = 18.0
+@export var pump_strength: float = 10.0
+@export var release_boost: float = 1.15
+@export var retract_mod_strength: float = 6.0
 @export var cooldown: float = 0.4
+@export var min_release_dist: float = 2.0
+@export var slack_enabled: bool = true
 
 var is_attached: bool = false
-var is_flying: bool = false
 var anchor: Vector3 = Vector3.ZERO
-var rope_len: float = 0.0
+var rest_length: float = 0.0
 
 var _player: CharacterBody3D = null
 var _input_dir: Vector2 = Vector2.ZERO
 var _cool_timer: float = 0.0
-
-var _fly_progress: float = 0.0
-var _fly_start: Vector3 = Vector3.ZERO
-var _fly_target: Vector3 = Vector3.ZERO
-var _fly_curve: Vector3 = Vector3.ZERO
-
 var _line: MeshInstance3D = null
 var _line_mesh: ImmediateMesh = null
+var _camera: Camera3D = null
 
 
-func setup(player: CharacterBody3D) -> void:
+func setup(player: CharacterBody3D, camera: Camera3D = null) -> void:
 	_player = player
+	_camera = camera
 	_build_rope_visual()
 
 
@@ -50,24 +48,21 @@ func _build_rope_visual() -> void:
 
 
 func fire(aim_pos: Vector3) -> void:
-	if _cool_timer > 0.0 or is_attached or is_flying or _player == null:
+	if _cool_timer > 0.0 or is_attached or _player == null:
 		return
-
-	var start: Vector3 = _player.global_position + Vector3.UP * 1.0
-	var dir: Vector3 = (aim_pos - start).normalized()
-	var dist: float = start.distance_to(aim_pos)
-
-	_fly_start = start
-	_fly_target = start + dir * minf(dist, max_rope_length)
-	_fly_curve = Vector3.ZERO
-	_fly_progress = 0.0
-	is_flying = true
+	var dist: float = _player.global_position.distance_to(aim_pos)
+	if dist > max_rope_length:
+		return
+	is_attached = true
+	anchor = aim_pos
+	rest_length = dist
+	_line.visible = true
+	hooked.emit(aim_pos)
 
 
 func release(reason: String = "manual") -> void:
 	if not is_attached:
 		return
-
 	var boost: Vector3 = _player.velocity * release_boost
 	is_attached = false
 	_line.visible = false
@@ -76,121 +71,105 @@ func release(reason: String = "manual") -> void:
 	released.emit(reason)
 
 
-func cancel_flight() -> void:
-	if not is_flying:
-		return
-	is_flying = false
-	_cool_timer = cooldown * 0.5
-
-
 func set_input(dir: Vector2) -> void:
 	_input_dir = dir
 
 
 func _process(delta: float) -> void:
 	_cool_timer = maxf(_cool_timer - delta, 0.0)
-
-	if is_flying:
-		_tick_flight(delta)
-
 	if _line.visible:
 		_draw_rope()
 
 
 func physics_tick(delta: float) -> bool:
-	if is_attached:
-		_tick_pendulum(delta)
-		return true
-	return false
+	if not is_attached:
+		return false
+	_tick_swing(delta)
+	return true
 
 
-func _physics_process(_delta: float) -> void:
-	if not is_flying:
-		return
-
-	var space := _player.get_world_3d().direct_space_state
-	if space == null:
-		return
-
-	var query := PhysicsRayQueryParameters3D.new()
-	query.from = _fly_start + _fly_curve
-	query.to = _fly_target + _fly_curve
-	query.collision_mask = 1
-	query.hit_from_inside = true
-
-	var result: Dictionary = space.intersect_ray(query)
-	if result.is_empty():
-		return
-
-	var hit: Vector3 = result["position"]
-	is_flying = false
-	is_attached = true
-	anchor = hit
-	rope_len = _player.global_position.distance_to(hit)
-	_line.visible = true
-	hooked.emit(hit)
-
-
-func _tick_flight(delta: float) -> void:
-	var dist: float = _fly_start.distance_to(_fly_target)
-	if dist <= 0.001:
-		return
-
-	_fly_progress += delta * hook_speed / dist
-
-	if _fly_progress >= 1.0:
-		is_flying = false
-		_on_hook_reach_target()
-		return
-
-	var lateral := Vector3(_input_dir.x, 0.0, _input_dir.y) * lateral_curve
-	_fly_curve += lateral * delta
-
-
-func _on_hook_reach_target() -> void:
-	var target: Vector3 = _fly_target + _fly_curve
-	is_attached = true
-	anchor = target
-	rope_len = _player.global_position.distance_to(target)
-	_line.visible = true
-	hooked.emit(target)
-
-
-func _tick_pendulum(delta: float) -> void:
+func _tick_swing(delta: float) -> void:
 	var to_anchor: Vector3 = anchor - _player.global_position
 	var dist: float = to_anchor.length()
-	var dir: Vector3 = to_anchor / dist
 
-	if dist < min_rope_length:
-		release("too_close")
+	if dist < 0.05:
 		return
 
-	if dist > max_rope_length * 1.1:
+	var dir: Vector3 = to_anchor / dist
+
+	if dist > max_rope_length * 1.5:
 		release("too_far")
 		return
 
-	var diff: float = dist - rope_len
-	_player.velocity += dir * diff * rope_stiffness * delta
+	if dist < min_release_dist:
+		release("too_close")
+		return
+
+	rest_length = maxf(rest_length - reel_in_speed * delta, 0.0)
+
+	var vel: Vector3 = _player.velocity
+	var radial_speed: float = vel.dot(dir)
+	var radial_vel: Vector3 = dir * radial_speed
+	var tangential_vel: Vector3 = vel - radial_vel
+
+	var diff: float = dist - rest_length
+	if diff > 0.0 or not slack_enabled:
+		var spring_force: float = diff * spring_constant
+		spring_force = clampf(spring_force, -80.0, 80.0)
+		radial_speed += spring_force * delta
+		radial_vel = dir * radial_speed
+
+	tangential_vel *= (1.0 - tangential_damping)
+
+	var swing_input: Vector3 = _get_swing_input_dir(dir)
+	tangential_vel += swing_input * swing_strength * delta
+
+	if _input_dir.y < 0.0:
+		var forward_pump: Vector3 = _get_forward_tangent(dir)
+		tangential_vel += forward_pump * pump_strength * absf(_input_dir.y) * delta
+
+	_player.velocity = radial_vel + tangential_vel
+
+	if _input_dir.y < 0.0:
+		rest_length = maxf(rest_length - retract_mod_strength * absf(_input_dir.y) * delta, 0.5)
 
 	var gravity: float = absf(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
 	_player.velocity += Vector3.DOWN * gravity * delta
 
-	var lateral := Vector3(_input_dir.x, 0.0, _input_dir.y) * swing_strength
-	lateral -= lateral.dot(dir) * dir
-	_player.velocity += lateral * delta
-
 	_player.move_and_slide()
 
-	to_anchor = anchor - _player.global_position
-	dist = to_anchor.length()
-	if dist > rope_len:
-		_player.global_position = anchor - to_anchor.normalized() * rope_len
+
+func _get_swing_input_dir(radial_dir: Vector3) -> Vector3:
+	var right: Vector3
+	if _camera != null:
+		right = _camera.global_transform.basis.x
+	else:
+		right = _player.global_transform.basis.x
+
+	right -= right.dot(radial_dir) * radial_dir
+	if right.length() < 0.001:
+		return Vector3.ZERO
+	right = right.normalized()
+
+	return right * _input_dir.x
+
+
+func _get_forward_tangent(radial_dir: Vector3) -> Vector3:
+	var forward: Vector3
+	if _camera != null:
+		forward = -_camera.global_transform.basis.z
+	else:
+		forward = -_player.global_transform.basis.z
+
+	forward -= forward.dot(radial_dir) * radial_dir
+	if forward.length() < 0.001:
+		return Vector3.ZERO
+	return forward.normalized()
 
 
 func _draw_rope() -> void:
 	if _line_mesh == null or _player == null:
 		return
-
 	_line_mesh.clear_surfaces()
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	_line_mesh.surface_add_vertex(anchor)
