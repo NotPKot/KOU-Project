@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 const BROKEN_STOPWATCH_SCENE := preload("res://scenes/weapons/BrokenStopwatch.tscn")
+const KATANA_SCENE := preload("res://scripts/weapons/katana.gd")
 const DASH_SCENE := preload("res://scripts/player/dash.gd")
 const GRAPPLING_HOOK_SCENE := preload("res://scripts/player/grappling_hook.gd")
 const TELEPORT_SCENE := preload("res://scripts/player/teleport.gd")
@@ -19,6 +20,9 @@ const TELEPORT_SCENE := preload("res://scripts/player/teleport.gd")
 
 @export_group("Jump")
 @export var jump_velocity: float = 8.5
+
+@export_group("Combat")
+@export var max_hp: int = 100
 
 @export_group("Camera")
 @export_range(0.0005, 0.01, 0.0005) var mouse_sensitivity: float = 0.003
@@ -42,9 +46,14 @@ var _teleport: Teleport = null
 var _air_control_timer: float = 0.0
 var _music_bpm: float = 0.0
 var _can_jump: bool = false
+var hp: int
+var _parry_window: float = 0.0
+var _last_hit_time: float = -20.0
+var _regen_timer: float = 0.0
 
 
 func _ready() -> void:
+	hp = max_hp
 	add_to_group("player")
 	add_to_group("saveable")
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -84,6 +93,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			deg_to_rad(max_pitch_degrees)
 		)
 		_apply_camera_rotation()
+
+	if _mouse_weapon == null or not _mouse_weapon.has_method("on_mouse_button"):
+		return
+
+	var mb: InputEventMouseButton = event as InputEventMouseButton
+	if mb != null and mb.pressed:
+		if _mouse_weapon.on_mouse_button(mb.button_index):
+			get_viewport().set_input_as_handled()
 
 
 func _physics_process(delta: float) -> void:
@@ -146,6 +163,30 @@ func _physics_process(delta: float) -> void:
 		_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
 
 	_face_motion_direction(delta)
+
+
+func _process(delta: float) -> void:
+	if _parry_window > 0.0:
+		_parry_window = maxf(_parry_window - delta, 0.0)
+
+	var time_since_hit: float = Time.get_ticks_msec() / 1000.0 - _last_hit_time
+	if hp < max_hp and time_since_hit >= 10.0:
+		_regen_timer += delta
+		if _regen_timer >= 5.0:
+			_regen_timer = 0.0
+			hp = mini(hp + 10, max_hp)
+
+
+func take_damage(amount: int, hitter: Node = null) -> void:
+	if _parry_window > 0.0 and _mouse_weapon != null and _mouse_weapon.has_method("on_parry_hit"):
+		_mouse_weapon.on_parry_hit(hitter)
+		return
+
+	hp -= amount
+	_last_hit_time = Time.get_ticks_msec() / 1000.0
+	_regen_timer = 0.0
+	if hp <= 0:
+		hp = 0
 
 
 func _apply_camera_rotation() -> void:
@@ -332,7 +373,11 @@ func _equip_mouse_weapon(weapon_id: StringName) -> void:
 			_mouse_weapon.equip(self)
 			if _music_bpm > 0.0 and _mouse_weapon.has_method("set_music_bpm"):
 				_mouse_weapon.set_music_bpm(_music_bpm)
-		_:
+		&"katana":
+			_mouse_weapon = KATANA_SCENE.new()
+			add_child(_mouse_weapon)
+			_mouse_weapon.equip(self)
+		_:			
 			print("Mouse weapon pending implementation: ", weapon_id)
 
 

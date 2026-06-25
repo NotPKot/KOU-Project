@@ -8,9 +8,11 @@ var _tween: Tween
 var _current_stream: AudioStream = null
 
 var _calm_tracks: Array[AudioStream] = []
+var _tension_tracks: Array[AudioStream] = []
 var _combat_tracks: Array[AudioStream] = []
 
 const CALM_DIR := "res://placeholder/audio/music/chill/"
+const TENSION_DIR := "res://placeholder/audio/music/tension/"
 const COMBAT_DIR := "res://placeholder/audio/music/fight/"
 
 
@@ -29,6 +31,7 @@ func _ready() -> void:
 
 func _load_tracks() -> void:
 	_calm_tracks = _load_ogg_dir(CALM_DIR)
+	_tension_tracks = _load_ogg_dir(TENSION_DIR)
 	_combat_tracks = _load_ogg_dir(COMBAT_DIR)
 
 
@@ -43,6 +46,8 @@ static func _load_ogg_dir(dir_path: String) -> Array[AudioStream]:
 		if file.ends_with(".ogg") and not file.ends_with(".ogg.import"):
 			var stream := load(dir_path.path_join(file)) as AudioStream
 			if stream != null:
+				if stream is AudioStreamOggVorbis:
+					stream.loop = true
 				result.append(stream)
 		file = dir.get_next()
 	dir.list_dir_end()
@@ -56,8 +61,10 @@ func _on_music_state_changed(new_state: MusicManager.EMusicState, _old_state: Mu
 func _play_state(state: MusicManager.EMusicState) -> void:
 	var pool: Array[AudioStream]
 	match state:
-		MusicManager.EMusicState.CALM, MusicManager.EMusicState.TENSION:
+		MusicManager.EMusicState.CALM:
 			pool = _calm_tracks
+		MusicManager.EMusicState.TENSION:
+			pool = _tension_tracks
 		MusicManager.EMusicState.COMBAT, MusicManager.EMusicState.BOSS, MusicManager.EMusicState.SPECIAL_EVENT:
 			pool = _combat_tracks
 
