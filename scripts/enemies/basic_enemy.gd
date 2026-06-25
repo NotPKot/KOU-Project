@@ -17,7 +17,7 @@ enum State { IDLE, CHASING, CHARGING, ATTACKING, COOLDOWN }
 var hp: int
 var _state: State = State.IDLE
 var _state_elapsed: float = 0.0
-var _player: Node = null
+var _player: Node3D = null
 var _left_fist_material: StandardMaterial3D
 var _right_fist_material: StandardMaterial3D
 var _body_material: StandardMaterial3D
@@ -33,7 +33,7 @@ var _body_base_color: Color = Color(0.55, 0.27, 0.07, 1.0)
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
-	_player = get_tree().get_first_node_in_group("player")
+	_player = get_tree().get_first_node_in_group("player") as Node3D
 
 	_left_fist_material = StandardMaterial3D.new()
 	_right_fist_material = StandardMaterial3D.new()

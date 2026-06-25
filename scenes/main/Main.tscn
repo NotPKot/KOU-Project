@@ -2,6 +2,8 @@
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/BasicEnemy.tscn" id="3_q24mn"]
+
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
 background_color = Color(0.56, 0.68, 0.78, 1)
@@ -29,3 +31,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1286347465]
 layer = 5
 
+[node name="BasicEnemy" parent="." unique_id=1906027508 instance=ExtResource("3_q24mn")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.252848, 0.667398, 7.854396)

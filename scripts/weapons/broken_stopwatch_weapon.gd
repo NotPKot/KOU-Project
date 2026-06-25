@@ -13,6 +13,11 @@ const RIFT_TIME_SCALE := 0.28
 const RIFT_CURSOR_RADIUS := 120.0
 const RIFT_CENTER_DEADZONE := 28.0
 
+const REFERENCE_BPM := 120.0
+const BASE_SLASH_DAMAGE := 10.0
+const PERFECT_DAMAGE_MULTIPLIER := 1.25
+const MIN_ATTACK_COOLDOWN_MSEC := 200
+
 const RIFTS := {
 	"up,down": {"id": &"temporal_impulse", "cost": 1, "name": "Impulso Temporal"},
 	"left,right,up": {"id": &"kinetic_fragment", "cost": 1, "name": "Fragmento Cinetico"},
@@ -62,6 +67,7 @@ var _rift_panel: Control = null
 var _rift_diamond: Control = null
 var _status_label: Label = null
 var _slash_index := 0
+var _last_attack_msec: int = 0
 
 
 func equip(owner_player: CharacterBody3D) -> void:
@@ -119,6 +125,10 @@ func _input(event: InputEvent) -> void:
 	var mouse_button := event as InputEventMouseButton
 	if mouse_button != null:
 		if mouse_button.button_index == MOUSE_BUTTON_LEFT and mouse_button.pressed and not _rift_open:
+			var now := Time.get_ticks_msec()
+			if now - _last_attack_msec < MIN_ATTACK_COOLDOWN_MSEC:
+				return
+			_last_attack_msec = now
 			_attack_on_beat()
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
@@ -165,6 +175,8 @@ func _spawn_basic_slash(is_perfect: bool) -> void:
 	if slash == null:
 		return
 
+	var calculated_damage := _calculate_damage(is_perfect)
+	slash.set("damage", calculated_damage)
 	slash.global_position = _owner_player.global_position + forward * slash_forward_offset
 	var yaw: float = atan2(-forward.x, -forward.z) + deg_to_rad(float(variant["yaw"]))
 	var roll: float = deg_to_rad(float(variant["roll"]))
@@ -176,6 +188,14 @@ func _spawn_basic_slash(is_perfect: bool) -> void:
 		slash.setup(range_value, slash_spawn_height, yaw, roll, slash_scale)
 
 	get_tree().current_scene.add_child(slash)
+
+
+func _calculate_damage(is_perfect: bool) -> int:
+	var current_bpm := 60.0 / beat_period if beat_period > 0.0 else REFERENCE_BPM
+	var raw := BASE_SLASH_DAMAGE * (REFERENCE_BPM / current_bpm)
+	if is_perfect:
+		raw *= PERFECT_DAMAGE_MULTIPLIER
+	return maxi(1, roundi(raw))
 
 
 func _get_next_slash_variant() -> Dictionary:
