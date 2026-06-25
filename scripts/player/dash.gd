@@ -35,15 +35,18 @@ func fire(camera_forward: Vector3) -> void:
 func _process(delta: float) -> void:
 	_cool_timer = maxf(_cool_timer - delta, 0.0)
 
+
+func physics_tick(delta: float) -> bool:
 	if not is_dashing or _player == null:
-		return
+		return false
 
 	_timer -= delta
 	if _timer <= 0.0:
 		is_dashing = false
 		dash_ended.emit()
 		_cool_timer = cooldown
-		return
+		return false
 
 	_player.velocity = _direction * dash_speed
 	_player.move_and_slide()
+	return true

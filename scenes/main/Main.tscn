@@ -3,6 +3,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/BasicEnemy.tscn" id="3_q24mn"]
+[ext_resource type="PackedScene" path="res://scenes/orbs/MobilityOrb.tscn" id="4_gyg6b"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -33,3 +34,7 @@ layer = 5
 
 [node name="BasicEnemy" parent="." unique_id=1906027508 instance=ExtResource("3_q24mn")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.252848, 0.667398, 7.854396)
+script = null
+
+[node name="MobilityOrb" parent="." unique_id=357713030 instance=ExtResource("4_gyg6b")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.64292526, 0, -3.7500973)

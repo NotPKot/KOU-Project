@@ -93,11 +93,15 @@ func _process(delta: float) -> void:
 	if is_flying:
 		_tick_flight(delta)
 
-	if is_attached:
-		_tick_pendulum(delta)
-
 	if _line.visible:
 		_draw_rope()
+
+
+func physics_tick(delta: float) -> bool:
+	if is_attached:
+		_tick_pendulum(delta)
+		return true
+	return false
 
 
 func _physics_process(_delta: float) -> void:
@@ -114,7 +118,7 @@ func _physics_process(_delta: float) -> void:
 	query.collision_mask = 1
 	query.hit_from_inside = true
 
-	var result := space.intersect_ray(query)
+	var result: Dictionary = space.intersect_ray(query)
 	if result.is_empty():
 		return
 

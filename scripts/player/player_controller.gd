@@ -91,14 +91,30 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var move_direction := _get_camera_relative_direction(input_vector)
-	var target_xz := move_direction * walk_speed
+	var input_vector: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+
+	if _hook != null:
+		_hook.set_input(input_vector)
+
+	if _dash != null and _dash.physics_tick(delta):
+		if _teleport != null and _teleport.is_charging:
+			var cam_basis := _camera_pivot.global_transform.basis
+			_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+		return
+
+	if _hook != null and _hook.physics_tick(delta):
+		if _teleport != null and _teleport.is_charging:
+			var cam_basis := _camera_pivot.global_transform.basis
+			_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+		return
+
+	var move_direction: Vector3 = _get_camera_relative_direction(input_vector)
+	var target_xz: Vector3 = move_direction * walk_speed
 	if _air_control_timer > 0.0:
 		_air_control_timer = max(_air_control_timer - delta, 0.0)
 
-	var current_air_acceleration := temporal_impulse_air_acceleration if _air_control_timer > 0.0 else air_acceleration
-	var acceleration := ground_acceleration if is_on_floor() else current_air_acceleration
+	var current_air_acceleration: float = temporal_impulse_air_acceleration if _air_control_timer > 0.0 else air_acceleration
+	var acceleration: float = ground_acceleration if is_on_floor() else current_air_acceleration
 
 	if input_vector.is_zero_approx() and is_on_floor():
 		acceleration = ground_deceleration
@@ -109,16 +125,13 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor() and velocity.y < 0.0:
 		velocity.y = -0.1
 	else:
-		var gravity_scale := temporal_impulse_gravity_scale if _air_control_timer > 0.0 and velocity.y < 0.0 else 1.0
+		var gravity_scale: float = temporal_impulse_gravity_scale if _air_control_timer > 0.0 and velocity.y < 0.0 else 1.0
 		velocity.y = max(velocity.y - gravity * gravity_scale * delta, -terminal_velocity)
 
 	if _can_jump and is_on_floor() and Input.is_action_just_pressed("ui_accept"):
 		velocity.y = jump_velocity
 
 	move_and_slide()
-
-	if _hook != null:
-		_hook.set_input(input_vector)
 
 	if _teleport != null and _teleport.is_charging:
 		var cam_basis := _camera_pivot.global_transform.basis
