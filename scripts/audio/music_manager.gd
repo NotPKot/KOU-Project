@@ -7,7 +7,7 @@ signal music_state_changed(new_state: EMusicState, old_state: EMusicState)
 var current_state: EMusicState = EMusicState.CALM
 
 @export var tension_to_combat_time: float = 3.0
-@export var combat_exit_time: float = 5.0
+@export var combat_exit_time: float = 10.0
 
 var _state_enter_time: float = 0.0
 var _active_sources: Dictionary = {}
@@ -146,3 +146,27 @@ func _on_exit_timeout() -> void:
 
 func _has_combat_sources() -> bool:
 	return _active_sources.has(EMusicState.COMBAT) and not _active_sources[EMusicState.COMBAT].is_empty()
+
+
+func register_threat(source: Node) -> void:
+	register_source(source, EMusicState.TENSION)
+
+
+func unregister_threat(source: Node) -> void:
+	unregister_source(source, EMusicState.TENSION)
+
+
+func force_boss_music(source: Node) -> void:
+	register_source(source, EMusicState.BOSS)
+
+
+func release_boss_music(source: Node) -> void:
+	unregister_source(source, EMusicState.BOSS)
+
+
+func force_special_event(source: Node) -> void:
+	register_source(source, EMusicState.SPECIAL_EVENT)
+
+
+func release_special_event(source: Node) -> void:
+	unregister_source(source, EMusicState.SPECIAL_EVENT)
