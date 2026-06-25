@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="BoxMesh" id="BoxMesh_block"]
+size = Vector3(2, 0.5, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_block"]
+albedo_color = Color(0.3, 0.7, 1, 0.35)
+metallic = 0.4
+roughness = 0.2
+transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+distance_fade_mode = 0
+emission_enabled = true
+emission = Color(0.3, 0.7, 1, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_block"]
+size = Vector3(2, 0.5, 2)
+
+[node name="HookBlock" type="StaticBody3D"]
+collision_layer = 4
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_block")
+material_override = SubResource("StandardMaterial3D_block")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_block")
