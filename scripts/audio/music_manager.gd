@@ -47,15 +47,15 @@ func _ready() -> void:
 
 
 func request_state(state: EMusicState, _source: Node = null, _priority: int = 0) -> void:
-	var new_prio := STATE_PRIORITY.get(state, 0)
-	var current_prio := STATE_PRIORITY.get(current_state, 0)
+	var new_prio: int = STATE_PRIORITY.get(state, 0)
+	var current_prio: int = STATE_PRIORITY.get(current_state, 0)
 
 	if new_prio > current_prio:
 		_change_state(state)
 	elif new_prio == current_prio:
 		_state_enter_time = Time.get_ticks_msec() / 1000.0
 	else:
-		var elapsed := (Time.get_ticks_msec() / 1000.0) - _state_enter_time
+		var elapsed: float = (Time.get_ticks_msec() / 1000.0) - _state_enter_time
 		if elapsed >= MIN_STATE_DURATION.get(current_state, 0.0):
 			_change_state(state)
 
@@ -86,7 +86,7 @@ func unregister_source(source: Node, state: EMusicState) -> void:
 
 
 func _change_state(new_state: EMusicState) -> void:
-	var old := current_state
+	var old: EMusicState = current_state
 	current_state = new_state
 	_state_enter_time = Time.get_ticks_msec() / 1000.0
 	music_state_changed.emit(new_state, old)
@@ -98,9 +98,9 @@ func _change_state(new_state: EMusicState) -> void:
 
 
 func _evaluate_downgrade() -> void:
-	var highest := EMusicState.CALM
+	var highest: int = EMusicState.CALM
 	for state in _active_sources.keys():
-		var s := state as int
+		var s: int = state as int
 		if s > highest:
 			highest = s
 
@@ -116,7 +116,7 @@ func _evaluate_downgrade() -> void:
 			_change_state(EMusicState.CALM)
 			return
 
-	var elapsed := (Time.get_ticks_msec() / 1000.0) - _state_enter_time
+	var elapsed: float = (Time.get_ticks_msec() / 1000.0) - _state_enter_time
 	if STATE_PRIORITY.get(current_state, 0) > STATE_PRIORITY.get(highest, 0) and elapsed >= MIN_STATE_DURATION.get(current_state, 0.0):
 		_change_state(highest)
 
