@@ -4,7 +4,7 @@ extends Node
 signal dashed
 signal dash_ended
 
-@export var dash_speed: float = 25.0
+@export var dash_speed: float = 33.25
 @export var dash_duration: float = 0.2
 @export var cooldown: float = 2.5
 

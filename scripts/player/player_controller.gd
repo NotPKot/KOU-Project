@@ -42,10 +42,18 @@ var _hook: GrapplingHook = null
 var _teleport: Teleport = null
 var _air_control_timer: float = 0.0
 var _can_jump: bool = false
+var _lifesteal_ratio: float = 0.0
+var _potion_heal_amount: int = 0
+var _potion_cooldown: float = 0.0
+var _potion_cooldown_timer: float = 0.0
+var _has_regen: bool = false
+var _clean_time: float = 0.0
+var _is_regen_active: bool = false
 var hp: int
+
+const CLEAN_TIME_THRESHOLD: float = 1.8
+const REGEN_HPS: float = 16.0
 var _parry_window: float = 0.0
-var _last_hit_msec: int = -20000
-var _regen_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -63,12 +71,16 @@ func _input(event: InputEvent) -> void:
 		return
 
 	var key_event: InputEventKey = event as InputEventKey
-	if key_event != null and (key_event.keycode == KEY_SHIFT or key_event.physical_keycode == KEY_SHIFT):
-		if key_event.pressed:
-			_on_mobility_pressed()
-		else:
-			_on_mobility_released()
-		get_viewport().set_input_as_handled()
+	if key_event != null:
+		if key_event.keycode == KEY_SHIFT or key_event.physical_keycode == KEY_SHIFT:
+			if key_event.pressed:
+				_on_mobility_pressed()
+			else:
+				_on_mobility_released()
+			get_viewport().set_input_as_handled()
+		elif key_event.keycode == KEY_E and key_event.pressed:
+			_use_potion()
+			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -162,11 +174,28 @@ func _process(delta: float) -> void:
 	if _parry_window > 0.0:
 		_parry_window = maxf(_parry_window - delta, 0.0)
 
-	if hp < max_hp and (Time.get_ticks_msec() - _last_hit_msec) >= 10000:
-		_regen_timer += delta
-		if _regen_timer >= 5.0:
-			_regen_timer = 0.0
-			hp = mini(hp + 10, max_hp)
+	if _potion_cooldown_timer > 0.0:
+		_potion_cooldown_timer = maxf(_potion_cooldown_timer - delta, 0.0)
+
+	if _has_regen:
+		_clean_time += delta
+		if _clean_time >= CLEAN_TIME_THRESHOLD and not _is_regen_active:
+			_is_regen_active = true
+
+		if _is_regen_active:
+			heal(ceili(REGEN_HPS * delta))
+
+
+func _use_potion() -> void:
+	if _input_locked or _aim_locked or _potion_heal_amount <= 0 or _potion_cooldown_timer > 0.0:
+		return
+
+	heal(_potion_heal_amount)
+	_potion_cooldown_timer = _potion_cooldown
+
+
+func heal(amount: int) -> void:
+	hp = mini(hp + amount, max_hp)
 
 
 func take_damage(amount: int, hitter: Node = null) -> void:
@@ -175,8 +204,9 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		return
 
 	hp -= amount
-	_last_hit_msec = Time.get_ticks_msec()
-	_regen_timer = 0.0
+	if _has_regen:
+		_clean_time = 0.0
+		_is_regen_active = false
 	if hp <= 0:
 		hp = 0
 
@@ -223,6 +253,24 @@ func set_aim_locked(is_locked: bool) -> void:
 
 func set_parry_window(duration: float) -> void:
 	_parry_window = duration
+
+
+func set_healing_mechanic(mechanic_id: StringName) -> void:
+	match mechanic_id:
+		&"lifesteal":
+			_lifesteal_ratio = 0.25
+		&"potion":
+			_potion_heal_amount = 35
+			_potion_cooldown = 5.5
+		&"regen":
+			_has_regen = true
+		_:
+			print("Healing mechanic pending: ", mechanic_id)
+
+
+func on_dealt_damage(amount: float) -> void:
+	if _lifesteal_ratio > 0.0:
+		heal(ceili(amount * _lifesteal_ratio))
 
 
 func set_mouse_weapon(weapon_id: StringName) -> void:
@@ -315,6 +363,24 @@ func enable_jump() -> void:
 func apply_temporal_impulse() -> void:
 	velocity.y = max(velocity.y, temporal_impulse_velocity)
 	_air_control_timer = temporal_impulse_air_control_time
+
+
+func get_cooldowns() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	if _potion_heal_amount > 0 and _potion_cooldown_timer > 0.0:
+		result.append({"id": "potion", "total": _potion_cooldown, "remaining": _potion_cooldown_timer})
+
+	if _dash != null and _dash._cool_timer > 0.0:
+		result.append({"id": "dash", "total": _dash.cooldown, "remaining": _dash._cool_timer})
+
+	if _hook != null and _hook._cool_timer > 0.0:
+		result.append({"id": "hook", "total": _hook.cooldown, "remaining": _hook._cool_timer})
+
+	if _teleport != null and _teleport._cool_timer > 0.0:
+		result.append({"id": "teleport", "total": _teleport.cooldown, "remaining": _teleport._cool_timer})
+
+	return result
 
 
 func get_save_data() -> Dictionary:

@@ -12,9 +12,12 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_toggle_pause()
-		get_viewport().set_input_as_handled()
+	var key := event as InputEventKey
+	if key != null and key.pressed:
+		if key.keycode == KEY_ESCAPE:
+			get_tree().quit()
+		elif key.keycode == KEY_0:
+			_toggle_pause()
 
 
 func _toggle_pause() -> void:

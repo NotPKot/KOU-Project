@@ -165,6 +165,8 @@ func _get_next_slash_variant() -> Dictionary:
 func _on_slash_hit(body: Node, damage: int) -> void:
 	if body.has_method("take_damage"):
 		_add_damage(damage)
+		if _owner_player != null and _owner_player.has_method("on_dealt_damage"):
+			_owner_player.on_dealt_damage(damage)
 
 
 func _add_damage(amount: float) -> void:

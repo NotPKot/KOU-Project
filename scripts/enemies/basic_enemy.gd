@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-enum State { IDLE, CHASING, CHARGING, ATTACKING, COOLDOWN, STUNNED }
+enum State { IDLE, CHASING, CHARGING, ATTACKING, DAZED, STUNNED }
 
 @export var walk_speed: float = 3.5
 @export var acceleration: float = 10.0
@@ -8,8 +8,8 @@ enum State { IDLE, CHASING, CHARGING, ATTACKING, COOLDOWN, STUNNED }
 @export var attack_range: float = 2.8
 @export var charge_duration: float = 1.0
 @export var attack_duration: float = 0.4
-@export var attack_lunge: float = 6.0
-@export var attack_cooldown: float = 1.5
+@export var attack_lunge: float = 2.5
+@export var dazed_duration: float = 1.0
 @export var attack_damage: int = 10
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
@@ -17,21 +17,26 @@ enum State { IDLE, CHASING, CHARGING, ATTACKING, COOLDOWN, STUNNED }
 @export var vision_range: float = 40.0
 @export var vision_angle: float = 120.0
 @export var lose_sight_time: float = 3.0
+@export var charge_blink_rate: float = 9.0
 
 var hp: int
 var _state: State = State.IDLE
 var _state_elapsed: float = 0.0
-var _player: Node3D = null
-var _left_fist_material: StandardMaterial3D
-var _right_fist_material: StandardMaterial3D
-var _body_material: StandardMaterial3D
-var _fist_idle_color: Color = Color(0.9, 0.75, 0.7, 1.0)
-var _body_base_color: Color = Color(0.55, 0.27, 0.07, 1.0)
 var _tension_registered: bool = false
 var _sight_loss_timer: float = 0.0
 var _can_see_cache: bool = false
 var _can_see_frame: int = -1
 var _effects: Dictionary = {}
+var _locked_attack_dir: Vector3 = Vector3.FORWARD
+
+var _left_fist_material: StandardMaterial3D = null
+var _right_fist_material: StandardMaterial3D = null
+var _body_material: StandardMaterial3D = null
+
+var _player: Node3D = null
+var _player_search_done: bool = false
+
+var _vision_query: PhysicsRayQueryParameters3D = null
 
 @onready var _visual: Node3D = $Visual
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
@@ -39,22 +44,48 @@ var _effects: Dictionary = {}
 @onready var _right_fist: MeshInstance3D = $Visual/RightFist
 
 
+func _get_left_fist_material() -> StandardMaterial3D:
+	if _left_fist_material == null:
+		_left_fist_material = StandardMaterial3D.new()
+		_left_fist_material.albedo_color = Color(0.9, 0.75, 0.7, 1.0)
+		_left_fist.material_override = _left_fist_material
+	return _left_fist_material
+
+
+func _get_right_fist_material() -> StandardMaterial3D:
+	if _right_fist_material == null:
+		_right_fist_material = StandardMaterial3D.new()
+		_right_fist_material.albedo_color = Color(0.9, 0.75, 0.7, 1.0)
+		_right_fist.material_override = _right_fist_material
+	return _right_fist_material
+
+
+func _get_body_material() -> StandardMaterial3D:
+	if _body_material == null:
+		_body_material = StandardMaterial3D.new()
+		_body_material.albedo_color = Color(0.55, 0.27, 0.07, 1.0)
+		_body_material.roughness = 0.85
+		_body_mesh.material_override = _body_material
+	return _body_material
+
+
+func _get_player() -> Node3D:
+	if _player == null and not _player_search_done:
+		_player_search_done = true
+		_player = get_tree().get_first_node_in_group("player") as Node3D
+	return _player
+
+
+func _get_vision_query() -> PhysicsRayQueryParameters3D:
+	if _vision_query == null:
+		_vision_query = PhysicsRayQueryParameters3D.new()
+		_vision_query.collision_mask = 1
+	return _vision_query
+
+
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
-	_player = get_tree().get_first_node_in_group("player") as Node3D
-
-	_left_fist_material = StandardMaterial3D.new()
-	_right_fist_material = StandardMaterial3D.new()
-	_left_fist_material.albedo_color = _fist_idle_color
-	_right_fist_material.albedo_color = _fist_idle_color
-	_left_fist.material_override = _left_fist_material
-	_right_fist.material_override = _right_fist_material
-
-	_body_material = StandardMaterial3D.new()
-	_body_material.albedo_color = _body_base_color
-	_body_material.roughness = 0.85
-	_body_mesh.material_override = _body_material
 
 
 func _physics_process(delta: float) -> void:
@@ -75,7 +106,8 @@ func _can_see_player_cached() -> bool:
 
 
 func _update_vision(delta: float) -> void:
-	if _player == null:
+	var player := _get_player()
+	if player == null:
 		return
 
 	var can_see := _can_see_player_cached()
@@ -111,7 +143,7 @@ func _update_fsm(delta: float) -> void:
 			_process_charge()
 		State.ATTACKING:
 			_process_attack()
-		State.COOLDOWN:
+		State.DAZED:
 			_stand_still(delta)
 		State.STUNNED:
 			_stand_still(0.0)
@@ -120,10 +152,11 @@ func _update_fsm(delta: float) -> void:
 
 
 func _check_transitions() -> void:
-	if _player == null:
+	var player := _get_player()
+	if player == null:
 		return
 
-	var dist := global_position.distance_to(_player.global_position)
+	var dist := global_position.distance_to(player.global_position)
 
 	match _state:
 		State.IDLE:
@@ -142,10 +175,10 @@ func _check_transitions() -> void:
 
 		State.ATTACKING:
 			if _state_elapsed >= attack_duration:
-				_change_state(State.COOLDOWN)
+				_change_state(State.DAZED)
 
-		State.COOLDOWN:
-			if _state_elapsed >= attack_cooldown:
+		State.DAZED:
+			if _state_elapsed >= dazed_duration:
 				_change_state(State.CHASING)
 
 		State.STUNNED:
@@ -157,12 +190,30 @@ func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_elapsed = 0.0
 
+	if new_state == State.CHARGING:
+		var player := _get_player()
+		if player != null:
+			var to_player := player.global_position - global_position
+			to_player.y = 0.0
+			if to_player.length_squared() > 0.0001:
+				_locked_attack_dir = to_player.normalized()
+			_visual.look_at(global_position + _locked_attack_dir, Vector3.UP)
+
+	if new_state == State.DAZED:
+		_get_left_fist_material().albedo_color = Color(0.45, 0.35, 0.35, 1.0)
+		_get_right_fist_material().albedo_color = Color(0.45, 0.35, 0.35, 1.0)
+		_get_body_material().albedo_color = Color(0.3, 0.2, 0.1, 1.0)
+
+	if new_state not in [State.DAZED, State.CHARGING]:
+		_reset_colors()
+
 
 func _can_see_player() -> bool:
-	if _player == null:
+	var player := _get_player()
+	if player == null:
 		return false
 
-	var to_player := _player.global_position - global_position
+	var to_player := player.global_position - global_position
 	var dist := to_player.length()
 	if dist > vision_range:
 		return false
@@ -178,11 +229,10 @@ func _can_see_player() -> bool:
 	if space == null:
 		return true
 
-	var query := PhysicsRayQueryParameters3D.new()
+	var query := _get_vision_query()
 	query.from = global_position + Vector3.UP * 0.5
-	query.to = _player.global_position + Vector3.UP * 0.5
-	query.collision_mask = 1
-	query.exclude = [get_rid(), _player.get_rid()]
+	query.to = player.global_position + Vector3.UP * 0.5
+	query.exclude = [get_rid(), player.get_rid()]
 	var result := space.intersect_ray(query)
 	return result.is_empty()
 
@@ -213,10 +263,11 @@ func _process_effects(delta: float) -> void:
 
 
 func _chase(delta: float) -> void:
-	if _player == null:
+	var player := _get_player()
+	if player == null:
 		return
 
-	var dir := (_player.global_position - global_position).normalized()
+	var dir := (player.global_position - global_position).normalized()
 	dir.y = 0.0
 
 	velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
@@ -225,8 +276,6 @@ func _chase(delta: float) -> void:
 	if dir.length_squared() > 0.001:
 		_visual.look_at(global_position + dir, Vector3.UP)
 
-	_reset_fist_color()
-
 
 func _stand_still(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
@@ -234,30 +283,36 @@ func _stand_still(delta: float) -> void:
 
 
 func _process_charge() -> void:
-	var intensity := sin(_state_elapsed * 18.0) * 0.5 + 0.5
-	var charge_color := Color(1.0, 0.2 + intensity * 0.3, 0.2 + intensity * 0.3, 1.0)
-	_left_fist_material.albedo_color = charge_color
-	_right_fist_material.albedo_color = charge_color
+	var blink_on := fmod(_state_elapsed * charge_blink_rate, 1.0) < 0.5
+	var fist_color := Color(1.0, 0.05, 0.05, 1.0) if blink_on else Color(0.9, 0.75, 0.7, 1.0)
+	_get_left_fist_material().albedo_color = fist_color
+	_get_right_fist_material().albedo_color = fist_color
+
+	var body_color := Color(1.0, 0.2, 0.2, 1.0) if blink_on else Color(0.55, 0.27, 0.07, 1.0)
+	_get_body_material().albedo_color = body_color
 
 
 func _process_attack() -> void:
-	var dir := -_visual.global_transform.basis.z
-	velocity.x = dir.x * attack_lunge
-	velocity.z = dir.z * attack_lunge
+	velocity.x = _locked_attack_dir.x * attack_lunge
+	velocity.z = _locked_attack_dir.z * attack_lunge
 
-	if _state_elapsed < 0.1 and _player != null:
-		var dist := global_position.distance_to(_player.global_position)
-		if dist < attack_range + 1.0:
-			if _player.has_method("take_damage"):
-				_player.take_damage(attack_damage, self)
+	if _state_elapsed < 0.1:
+		var player := _get_player()
+		if player != null:
+			var dist := global_position.distance_to(player.global_position)
+			if dist < attack_range + 1.0:
+				if player.has_method("take_damage"):
+					player.take_damage(attack_damage, self)
 
-	_left_fist_material.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
-	_right_fist_material.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+	_get_left_fist_material().albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+	_get_right_fist_material().albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+	_get_body_material().albedo_color = Color(1.0, 0.9, 0.9, 1.0)
 
 
-func _reset_fist_color() -> void:
-	_left_fist_material.albedo_color = _fist_idle_color
-	_right_fist_material.albedo_color = _fist_idle_color
+func _reset_colors() -> void:
+	_get_left_fist_material().albedo_color = Color(0.9, 0.75, 0.7, 1.0)
+	_get_right_fist_material().albedo_color = Color(0.9, 0.75, 0.7, 1.0)
+	_get_body_material().albedo_color = Color(0.55, 0.27, 0.07, 1.0)
 
 
 func take_damage(amount: int) -> void:
@@ -268,8 +323,8 @@ func take_damage(amount: int) -> void:
 
 
 func _modulate_damage() -> void:
-	_body_material.albedo_color = Color.WHITE
+	_get_body_material().albedo_color = Color.WHITE
 	await get_tree().create_timer(0.08).timeout
 	if is_queued_for_deletion():
 		return
-	_body_material.albedo_color = _body_base_color
+	_get_body_material().albedo_color = Color(0.55, 0.27, 0.07, 1.0)
