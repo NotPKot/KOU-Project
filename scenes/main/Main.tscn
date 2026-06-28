@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/HealerEnemy.tscn" id="3_2tpxt"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/BasicEnemy.tscn" id="3_q24mn"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/MobilityOrb.tscn" id="4_gyg6b"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/JumpOrb.tscn" id="5_jump_orb"]
@@ -12,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="10_pause_menu"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/HealOrb.tscn" id="11_qkm1d"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CooldownHud.tscn" id="12_cooldown_hud"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/practice/CoverWalls.tscn" id="13_cover_walls"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -38,6 +40,9 @@ shadow_enabled = true
 [node name="PracticeGround" parent="ActiveWorld" unique_id=430140652 instance=ExtResource("2_practice_ground")]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
 
+[node name="HealerEnemy" parent="ActiveWorld" unique_id=113623208 instance=ExtResource("3_2tpxt")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.62741, 2.3841858e-07, 18.486622)
+
 [node name="Player" parent="." unique_id=1799823721 instance=ExtResource("1_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
 
@@ -46,9 +51,21 @@ layer = 5
 
 [node name="HealthBar" parent="HUD" unique_id=1898510102 instance=ExtResource("9_health_bar")]
 layout_mode = 3
+anchors_preset = 2
+offset_left = 0.0
+offset_top = -27.0
+offset_right = 240.0
+offset_bottom = 0.0
+grow_vertical = 0
 
-[node name="CooldownHud" parent="HUD" instance=ExtResource("12_cooldown_hud")]
+[node name="CooldownHud" parent="HUD" unique_id=244158569 instance=ExtResource("12_cooldown_hud")]
 layout_mode = 3
+anchors_preset = 2
+offset_left = 0.0
+offset_top = -42.0
+offset_right = 240.0
+offset_bottom = 0.0
+grow_vertical = 0
 
 [node name="MobilityOrb" parent="." unique_id=357713030 instance=ExtResource("4_gyg6b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.64292526, 0, -3.7500973)
@@ -67,6 +84,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45.30845, 0, 14.01933)
 
 [node name="PauseMenu" parent="." unique_id=708856309 instance=ExtResource("10_pause_menu")]
 
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=643454832]
+
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=742086041]
 transform = Transform3D(2, 0, 0, 0, 1, 0, 0, 0, 1, 0.17282328, 0.5194664, 23.809948)
 mesh = SubResource("PrismMesh_3km4f")
@@ -77,3 +96,24 @@ mesh = SubResource("PrismMesh_3km4f")
 
 [node name="HealOrb" parent="." unique_id=905196128 instance=ExtResource("11_qkm1d")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6869783, 0, -4.1792474)
+
+[node name="CoverWall" parent="." unique_id=694595428 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0.008726561, 0, 0.9999619, 0, 1, 0, -0.9999619, 0, 0.008726561, 39.43992, 1.2282643, 18.308714)
+
+[node name="CoverWall2" parent="." unique_id=304141161 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40.05252, 1.25, 2.4541464)
+
+[node name="CoverWall3" parent="." unique_id=1611277648 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0.054078843, 0, 0.99853665, 0, 1, 0, -0.99853665, 0, 0.054078843, 33.214973, 1.25, 12.831606)
+
+[node name="CoverWall4" parent="." unique_id=657892949 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.55863, 1.25, 16.583817)
+
+[node name="CoverWall5" parent="." unique_id=1021686886 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(-0.16160385, 0, 0.9868557, 0, 1, 0, -0.9868557, 0, -0.16160385, 48.60861, 1.2124999, 14.338476)
+
+[node name="CoverWall6" parent="." unique_id=624038477 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36.608677, 1.25, 24.894222)
+
+[node name="CoverWall7" parent="." unique_id=197928458 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.579071, 1.25, 18.056158)

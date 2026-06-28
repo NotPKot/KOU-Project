@@ -1,0 +1,53 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/healer_enemy.gd" id="1_healer_enemy"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+top_radius = 0.3
+bottom_radius = 0.4
+height = 1.8
+radial_segments = 10
+rings = 2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.15, 0.65, 0.55, 1)
+roughness = 0.6
+metallic = 0.3
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.25
+height = 0.5
+radial_segments = 10
+rings = 4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_head"]
+albedo_color = Color(0.2, 0.75, 0.65, 1)
+roughness = 0.5
+metallic = 0.2
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_collision"]
+radius = 0.4
+height = 1.8
+
+[node name="HealerEnemy" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1_healer_enemy")
+
+[node name="Visual" type="Node3D" parent="."]
+position = Vector3(0, 0.9, 0)
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+mesh = SubResource("CylinderMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
+
+[node name="Head" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 0.95, 0)
+mesh = SubResource("SphereMesh_head")
+surface_material_override/0 = SubResource("StandardMaterial3D_head")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_collision")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
