@@ -1,0 +1,40 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=4
+
+_global_script_classes=[ {
+"base": "Node",
+"class": "GOAPAction",
+"language": "GDScript",
+"path": "res://addons/goap/goap_action.gd"
+}, {
+"base": "Node",
+"class": "GOAPActionPlanner",
+"language": "GDScript",
+"path": "res://addons/goap/goap_action_planner.gd"
+} ]
+_global_script_class_icons={
+"GOAPAction": "",
+"GOAPActionPlanner": "res://addons/goap/goap_action_planner.png"
+}
+
+[application]
+
+config/name="GOAP"
+run/main_scene="res://goap_example/test.tscn"
+config/icon="res://icon.png"
+
+[display]
+
+window/size/width=1280
+window/size/height=720
+
+[editor_plugins]
+
+enabled=PoolStringArray( "goap" )

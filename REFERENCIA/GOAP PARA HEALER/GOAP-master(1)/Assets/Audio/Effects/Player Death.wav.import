@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://5h0ft17h0qr2"
+path="res://.godot/imported/Player Death.wav-2cc11b18a2f848a181b24a90b28b0fee.sample"
+
+[deps]
+
+source_file="res://REFERENCIA/GOAP PARA HEALER/GOAP-master(1)/Assets/Audio/Effects/Player Death.wav"
+dest_files=["res://.godot/imported/Player Death.wav-2cc11b18a2f848a181b24a90b28b0fee.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

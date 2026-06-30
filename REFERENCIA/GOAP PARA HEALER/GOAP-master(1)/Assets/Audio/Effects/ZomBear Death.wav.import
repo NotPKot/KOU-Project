@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://hiw0pmcp5lwk"
+path="res://.godot/imported/ZomBear Death.wav-0028dd09205402913f4b419ac4669ce9.sample"
+
+[deps]
+
+source_file="res://REFERENCIA/GOAP PARA HEALER/GOAP-master(1)/Assets/Audio/Effects/ZomBear Death.wav"
+dest_files=["res://.godot/imported/ZomBear Death.wav-0028dd09205402913f4b419ac4669ce9.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

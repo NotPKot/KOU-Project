@@ -35,3 +35,5 @@ El orbe de eleccion usa deteccion por evento (`body_entered`) y una lista fija d
 ## Patron actual: Cronometro Roto
 
 El Cronometro Roto usa una maquina de estados pequena: ritmo, cargas, menu Rift y secuencia. Las secuencias tienen largo maximo 4 y las cargas maximas son 3, asi que validacion, HUD y casteo son O(1). Las futuras hitboxes, proyectiles o burbujas deben buscar objetivos por areas fisicas acotadas o caches, no por escaneos globales de enemigos.
+^^^^^^^^^
+esta wea esta vieja, ignorar

@@ -1,13 +1,12 @@
 # Cronometro Roto
 
-Arma de mouse basada en ritmo y Cargas de Rift.
+Arma de mouse basada en hacer daño y Descargas de Rift.
 
 ## Estado implementado
 
-- Click izquierdo: golpe sincronizado con el compas `click / clack`.
 - Cada golpe genera un slash visual reusable con arco, particulas, trail simple y flash.
 - Golpes perfectos: aumentan cadena.
-- Cada 4 golpes perfectos: +1 Carga de Rift.
+- Cada (daño no definido): +1 Carga de Rift.
 - Maximo: 3 cargas.
 - Click derecho mantenido: abre menu Rift si hay cargas.
 - Mientras el menu esta abierto: `Engine.time_scale` baja a 0.28.
@@ -29,9 +28,6 @@ Arma de mouse basada en ritmo y Cargas de Rift.
 
 Los efectos ofensivos imprimen placeholders hasta que existan enemigos, vida y hurtboxes. `Impulso Temporal` ya aplica salto, caida lenta y mayor control aereo temporal.
 
-## BPM automatico
-
-El BPM se analiza offline con `tools/audio/detect_bpm.py` y se guarda en `data/audio_bpm_cache.json`. En runtime, `scripts/audio/bpm_database.gd` lee ese cache y `music_tempo_sync.gd` puede aplicar el BPM actual llamando `set_music_bpm()` en el Cronometro. Esto evita hacer analisis pesado durante combate.
 
 ## Slash basico
 

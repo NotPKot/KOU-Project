@@ -30,6 +30,7 @@ func _setup_navmesh() -> void:
 		return
 
 	var nav_mesh := NavigationMesh.new()
+	nav_mesh.agent_radius = 0.4
 	var half := 60.0
 	nav_mesh.vertices = PackedVector3Array([
 		Vector3(-half, 0, -half),

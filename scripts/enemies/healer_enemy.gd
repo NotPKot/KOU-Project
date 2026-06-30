@@ -5,13 +5,13 @@ extends CharacterBody3D
 # ============================================================
 
 @export var walk_speed: float = 2.5
-@export var acceleration: float = 8.0
+@export var acceleration: float = 12.0
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
 @export var max_hp: int = 60
 @export var vision_range: float = 40.0
 @export var vision_angle: float = 120.0
-@export var lose_sight_time: float = 3.0
+@export var lose_sight_time: float = 2.5
 
 @export var heal_detection_range: float = 20.0
 @export var heal_range: float = 3.0
@@ -25,6 +25,18 @@ extends CharacterBody3D
 @export var cover_scan_range: float = 16.0
 @export var cover_scan_rays: int = 12
 
+@export_group("Tensión")
+@export var tension_max_distance: float = 16.0  # mas alla de esto, la distancia no aporta tensión
+@export var tension_rise_distance_rate: float = 7.0  # por segundo, a distancia minima
+@export var tension_rise_vision_rate: float = 10.0  # por segundo, si el JUGADOR ve al healer
+@export var tension_hit_spike: float = 45.0  # salto inmediato al recibir un golpe
+@export var tension_decay_rate: float = 20.0  # por segundo, cuando ninguna condicion se cumple
+@export var tension_medium_threshold: float = 30.0
+@export var tension_high_threshold: float = 65.0
+@export var panic_detect_range: float = 4.0  # si el jugador esta mas cerca que esto y visible, el healer huye al instante
+
+var _healer_tension: float = 0.0
+
 const ALLY_HP_RATIO_THRESHOLD: float = 0.8
 const COVER_MIN_DIST: float = 3.0
 
@@ -37,16 +49,21 @@ var _sight_loss_timer: float = 0.0
 var _tension_registered: bool = false
 var _can_see_cache: bool = false
 var _can_see_frame: int = -1
+var _last_seen_time: float = -999.0
 
 var _vision_query: PhysicsRayQueryParameters3D = null
 var _cover_query: PhysicsRayQueryParameters3D = null
-var _avoidance_query: PhysicsRayQueryParameters3D = null
 
 var _effects: Dictionary = {}
 
 var _cover_target: Vector3 = Vector3.ZERO
 var _cover_recalc_cooldown: float = 0.0
 const COVER_RECALC_INTERVAL: float = 0.3
+
+var _known_covers: Array[Vector3] = []
+var _cover_memory_scan_timer: float = 0.0
+const COVER_MEMORY_SCAN_INTERVAL: float = 10.0
+const MAX_KNOWN_COVERS: int = 8
 
 var _last_hit_time: float = -999.0
 var _flee_target: Vector3 = Vector3.ZERO
@@ -86,16 +103,23 @@ func _ready() -> void:
 	_head_material.metallic = 0.2
 	_head_mesh.material_override = _head_material
 
-	_nav_agent.path_desired_distance = 0.5
-	_nav_agent.target_desired_distance = 0.5
+	_nav_agent.path_desired_distance = 1.0
+	_nav_agent.target_desired_distance = 1.0
 	_nav_agent.radius = 0.4
 	_nav_agent.max_speed = walk_speed * flee_speed_mult
+	_nav_agent.avoidance_enabled = false
+
+	# evita que el healer se quede atascado al rozar una pared: sin esto,
+	# move_and_slide() puede detenerlo completamente si topa contra una
+	# pared mientras está en el suelo, en vez de deslizarse a lo largo de ella.
+	floor_block_on_wall = false
 
 
 func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	_process_effects(delta)
 	_update_vision(delta)
+	_update_tension(delta)
 	_tick_timers(delta)
 	_evaluate_goap(delta)
 	move_and_slide()
@@ -124,6 +148,67 @@ func _can_see_player_cached() -> bool:
 	return _can_see_cache
 
 
+func _update_tension(delta: float) -> void:
+	# sistema de Tensión: en vez de calcular un punto geometrico "ideal" de
+	# escudo respecto a un aliado (que producía el efecto de "perro con
+	# correa" orbitando en el radio máximo), el healer ahora reacciona a un
+	# valor escalar de amenaza. Esto es mas parecido a cómo enemigos de
+	# soporte en juegos de acción reales (ej. el Wyvern de Destiny, que
+	# proyecta su escudo en vez de perseguir un ángulo perfecto) deciden
+	# CUANDO acercarse o alejarse, dejando que el movimiento normal
+	# (NavigationAgent3D + cobertura)(o eso quisiera) resuelva el COMO llegar ahí.
+	# (esta wea es del sistema viejo, que no me guste y borre asi)
+	var player := _get_player()
+	if player == null:
+		_healer_tension = maxf(_healer_tension - tension_decay_rate * delta, 0.0)
+		return
+
+	var rose := false
+
+	# factor 1: distancia al jugador — solo si lo hemos visto en los
+	# ultimos 5 segundos. Sin esto, la tensión subia por proximidad aunque
+	# hubiera una pared de por medio, haciendo que el healer huyera chocando con las paredes.
+	var now := Time.get_ticks_msec() * 0.001
+	var dist := global_position.distance_to(player.global_position)
+	if dist < tension_max_distance and now - _last_seen_time < 5.0:
+		var proximity := 1.0 - clampf(dist / tension_max_distance, 0.0, 1.0)
+		_healer_tension += tension_rise_distance_rate * proximity * delta
+		rose = true
+
+	# factor 2: el JUGADOR tiene línea de visión directa hacia el healer
+	# (exposicion real) — NO confundir con que el healer vea al jugador
+	# (eso es solo percepcion propia, no significa estar expuesto). Antes
+	# este factor usaba _can_see_player_cached(), que mide lo contrario
+	# (healer -> jugador, basado en el cono de visión/orientación del
+	# healer) — eso disparaba tension solo porque el healer "notaba" al
+	# jugador, sin que el jugador lo viera a el, haciendo que huyera por
+	# simplemente estar cerca y mirando hacia ahí.
+	var space := get_world_3d().direct_space_state
+	if space != null and not _is_position_hidden_from_player(global_position, player, space):
+		_healer_tension += tension_rise_vision_rate * delta
+		rose = true
+
+	# factor 3: ataque activo — un golpe reciente da un salto inmediato,
+	# no solo una subida gradual (reutiliza _last_hit_time, ya actualizado
+	# por take_damage en otra parte del script).
+	if now - _last_hit_time < 0.15:
+		_healer_tension = maxf(_healer_tension, tension_hit_spike)
+		rose = true
+
+	if not rose:
+		_healer_tension = maxf(_healer_tension - tension_decay_rate * delta, 0.0)
+
+	_healer_tension = clampf(_healer_tension, 0.0, 100.0)
+
+
+func _tension_is_high() -> bool:
+	return _healer_tension >= tension_high_threshold
+
+
+func _tension_is_medium_or_above() -> bool:
+	return _healer_tension >= tension_medium_threshold
+
+
 func _update_vision(delta: float) -> void:
 	var player := _get_player()
 	if player == null:
@@ -133,6 +218,7 @@ func _update_vision(delta: float) -> void:
 
 	if can_see:
 		_sight_loss_timer = 0.0
+		_last_seen_time = Time.get_ticks_msec() * 0.001
 		if not _tension_registered:
 			_tension_registered = true
 			MusicManager.register_threat(self)
@@ -180,6 +266,12 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
+	# seguimiento directo del path del NavigationAgent3D (sin RVO). El RVO
+	# estaba causando que el healer chocara contra las paredes porque el
+	# sistema de avoidance solo separa agentes entre sí, no esquiva
+	# obstaculos estáticos — y la velocidad calculada llegaba con retraso
+	# (un frame de desfase), haciendo que las correcciones antichoque no
+	# se aplicaran a tiempo en el move_and_slide().
 	_nav_agent.target_position = target
 	var next_point := _nav_agent.get_next_path_position()
 
@@ -196,28 +288,11 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 		dir = to_next.normalized()
 
 	if dir.length_squared() > 0.001:
-		var space := get_world_3d().direct_space_state
-		if space != null:
-			if _avoidance_query == null:
-				_avoidance_query = PhysicsRayQueryParameters3D.new()
-				_avoidance_query.collision_mask = 1
-			_avoidance_query.from = global_position + Vector3.UP * 0.5
-			_avoidance_query.to = _avoidance_query.from + dir * 1.5
-			_avoidance_query.exclude = [get_rid()]
-			var hit := space.intersect_ray(_avoidance_query)
-			if not hit.is_empty():
-				var wall_normal := (hit["normal"] as Vector3).normalized()
-				wall_normal.y = 0.0
-				if wall_normal.length_squared() > 0.001:
-					var slide_dir := dir - dir.dot(wall_normal) * wall_normal.normalized()
-					if slide_dir.length_squared() > 0.001:
-						dir = slide_dir.normalized()
-
-	velocity.x = move_toward(velocity.x, dir.x * speed, acceleration * delta)
-	velocity.z = move_toward(velocity.z, dir.z * speed, acceleration * delta)
-
-	if dir.length_squared() > 0.001:
+		velocity.x = move_toward(velocity.x, dir.x * speed, acceleration * delta)
+		velocity.z = move_toward(velocity.z, dir.z * speed, acceleration * delta)
 		_visual_node.look_at(global_position + dir, Vector3.UP)
+
+
 
 
 func _stand_still(delta: float) -> void:
@@ -347,15 +422,70 @@ func _get_cover_query() -> PhysicsRayQueryParameters3D:
 
 
 func _is_position_hidden_from_player(pos: Vector3, player: Node3D, space: PhysicsDirectSpaceState3D) -> bool:
-	# Misma lógica que _can_see_player(), pero evaluada desde un punto candidato
-	# en vez de desde global_position. Si el rayo jugador->pos golpea algo en
-	# el medio, esa posición está oculta (es cobertura real).
 	var query := _get_cover_query()
 	query.from = player.global_position + Vector3.UP * 0.5
 	query.to = pos + Vector3.UP * 0.5
 	query.exclude = [get_rid(), player.get_rid()]
 	var result := space.intersect_ray(query)
-	return not result.is_empty()
+	if result.is_empty():
+		return false
+	# el obstaculo debe estar mas cerca del healer que del jugador.
+	# Si esta mas cerca del jugador, es el jugador quien esta tras la pared,
+	# no el healer — y el healer NO está realmente escondido.
+	var hit_pos := result["position"] as Vector3
+	var dist_to_healer_sq := hit_pos.distance_squared_to(pos)
+	var dist_to_player_sq := hit_pos.distance_squared_to(player.global_position)
+	return dist_to_healer_sq < dist_to_player_sq
+
+
+func _find_idle_position() -> Vector3:
+	# el healer prefiere estar cerca de sus aliados. busca un punto cerca
+	# del aliado mas proximo, y solo recurre a cobertura si no hay aliados
+	# o si la posicion junto al aliado está expuesta al jugador.
+	var nearest_ally := _find_nearest_ally()
+	if nearest_ally != null:
+		var player := _get_player()
+		var space := get_world_3d().direct_space_state
+		if space != null:
+			var ally_pos := nearest_ally.global_position
+			# intentar ponerse al lado del aliado (a 3m de distancia)
+			var dir_from_ally := global_position - ally_pos
+			dir_from_ally.y = 0.0
+			if dir_from_ally.length_squared() < 0.01:
+				dir_from_ally = Vector3.RIGHT
+			var pos_near_ally := ally_pos + dir_from_ally.normalized() * 3.0
+			# solo si esa posicion no esta expuesta
+			if player == null or _is_position_hidden_from_player(pos_near_ally, player, space):
+				return pos_near_ally
+			# si esta expuesta, buscar cobertura cerca del aliado
+			var cover := _find_cover_near(ally_pos)
+			if cover.distance_squared_to(global_position) > 0.5:
+				return cover
+	# fallback: cobertura normal
+	return _find_nearest_cover()
+
+
+func _find_cover_near(origin: Vector3) -> Vector3:
+	# busca cobertura cerca de un punto dado (sin escanear desde cero,
+	# reusa la memoria de coberturas conocidas).
+	#esto evita que el NPC vaya por una ruta optima a un lugar que jamas a visitado
+	#quitando asi la imagen de que fuera omniprescente, esto lo hace mas natural a la hora del gameplay
+	var player := _get_player()
+	var space := get_world_3d().direct_space_state
+	if space == null or player == null:
+		return global_position
+	
+	var best_pos := global_position
+	var best_dist := INF
+	for cover in _known_covers:
+		if _is_position_hidden_from_player(cover, player, space):
+			var d := origin.distance_squared_to(cover)
+			if d < best_dist:
+				best_dist = d
+				best_pos = cover
+	if best_dist < INF:
+		return best_pos
+	return _find_nearest_cover()
 
 
 func _find_nearest_cover() -> Vector3:
@@ -364,6 +494,17 @@ func _find_nearest_cover() -> Vector3:
 	if space == null or player == null:
 		return global_position
 
+	var mem_best := _find_best_remembered_cover(player, space)
+	if mem_best != global_position:
+		return mem_best
+
+	var scan_result := _full_cover_scan(player, space)
+	if scan_result != global_position:
+		_remember_cover(scan_result)
+	return scan_result
+
+
+func _full_cover_scan(player: Node3D, space: PhysicsDirectSpaceState3D) -> Vector3:
 	var best_pos := global_position
 	var best_dist := INF
 	var found_any := false
@@ -386,12 +527,9 @@ func _find_nearest_cover() -> Vector3:
 		var hit_pos := probe_result["position"] as Vector3
 		var hit_normal := (probe_result["normal"] as Vector3).normalized()
 
-		# Candidato: un paso hacia el lado del obstáculo opuesto al rayo de escaneo,
-		# es decir, "detrás" del obstáculo respecto al centro del healer.
 		var cover_pos := hit_pos + hit_normal * COVER_MIN_DIST
 		cover_pos.y = global_position.y
 
-		# Verificación real: ¿este punto rompe línea de visión con el jugador?
 		if not _is_position_hidden_from_player(cover_pos, player, space):
 			continue
 
@@ -401,14 +539,47 @@ func _find_nearest_cover() -> Vector3:
 			best_pos = cover_pos
 			found_any = true
 
-	if not found_any:
-		return global_position
+	if found_any:
+		return best_pos
+	return global_position
 
+
+func _refresh_cover_memory(player: Node3D, space: PhysicsDirectSpaceState3D) -> void:
+	var result := _full_cover_scan(player, space)
+	if result != global_position:
+		_remember_cover(result)
+
+
+func _find_best_remembered_cover(player: Node3D, space: PhysicsDirectSpaceState3D) -> Vector3:
+	var best_pos := global_position
+	var best_dist := INF
+	var to_remove: Array[int] = []
+	for idx in range(_known_covers.size()):
+		var cover := _known_covers[idx]
+		if not _is_position_hidden_from_player(cover, player, space):
+			to_remove.append(idx)
+			continue
+		var d := global_position.distance_squared_to(cover)
+		if d < best_dist:
+			best_dist = d
+			best_pos = cover
+	to_remove.reverse()
+	for idx in to_remove:
+		_known_covers.remove_at(idx)
 	return best_pos
 
 
+func _remember_cover(pos: Vector3) -> void:
+	for existing in _known_covers:
+		if existing.distance_squared_to(pos) < 1.0:
+			return
+	_known_covers.append(pos)
+	if _known_covers.size() > MAX_KNOWN_COVERS:
+		_known_covers.pop_front()
+
+
 func _get_flee_target_from_player() -> Vector3:
-	# La huida ahora apunta directo a un punto de cobertura real (mismo
+	# la huida ahora apunta directo a un punto de cobertura real (mismo
 	# escaneo que usa IDLE). Si no hay ninguno disponible cerca, cae al
 	# comportamiento anterior de alejarse del jugador en línea recta —
 	# _has_reached_safety() ya cubre ese caso con safe_distance_fallback.
@@ -425,28 +596,6 @@ func _get_flee_target_from_player() -> Vector3:
 	if away.length_squared() > 0.01:
 		return global_position + away.normalized() * 15.0
 	return global_position + Vector3.RIGHT * 10.0
-
-
-func _get_shield_waypoint_from_player() -> Array:
-	# Punto intermedio: ponerse "detrás" de un aliado cercano respecto al
-	# jugador, para usarlo de escudo. Usado tanto al entrar a FLEE (una vez)
-	# como de forma continua en IDLE (recalculado cada frame).
-	# Devuelve [found: bool, position: Vector3, ally: Node3D].
-	var player := _get_player()
-	if player == null:
-		return [false, global_position, null]
-
-	var shield := _find_nearest_ally()
-	if shield == null:
-		return [false, global_position, null]
-
-	var from_player_to_shield := shield.global_position - player.global_position
-	from_player_to_shield.y = 0.0
-	if from_player_to_shield.length_squared() <= 0.01:
-		return [false, global_position, null]
-
-	var dir := from_player_to_shield.normalized()
-	return [true, shield.global_position + dir * 3.0, shield]
 
 
 # ============================================================
@@ -483,6 +632,16 @@ func _evaluate_goap(delta: float) -> void:
 	_execute_action(_current_action, delta)
 
 
+func _is_flee_urgent() -> bool:
+	# solo interrumpir curación si:
+	# 1. acaban de golpearnos (ventana de huida por daño directo)
+	# 2. el jugador está en rango de pánico (distancia muy corta)
+	var now := Time.get_ticks_msec() * 0.001
+	if now - _last_hit_time < flee_duration:
+		return true
+	return _is_player_in_panic_range()
+
+
 func _evaluate_best_action() -> GoapActionId:
 	# Si estamos actualmente en FLEE, decidir si toca salir y hacia dónde.
 	if _current_action == GoapActionId.FLEE:
@@ -495,19 +654,34 @@ func _evaluate_best_action() -> GoapActionId:
 			FleeExit.NONE:
 				return GoapActionId.FLEE
 
-	# Si nos golpean en cualquier otro estado (incluyendo RECOVER o WINDED),
+	# si esta curando activamente, NO interrumpir a menos que sea urgente
+	# (golpe directo o pánico extremo). el healer debe priorizar su rol de
+	# soporte sobre huir por cualquier amenaza leve.
+	#es un healer, no un cobarde xd
+	if _current_action == GoapActionId.HEAL_ALLY:
+		if _is_flee_urgent():
+			return GoapActionId.FLEE
+		if _can_heal_ally():
+			return GoapActionId.HEAL_ALLY
+		_target_ally = null
+
+	# panico: solo desde IDLE. El healer ya no huye en pánico mientras esta
+	# curando (se maneja arriba con _is_flee_urgent), permitiendo que termine
+	# la cura antes de evaluar huida.
+	if _current_action == GoapActionId.IDLE and _is_player_in_panic_range():
+		return GoapActionId.FLEE
+
+	# si nos golpean en cualquier otro estado (incluyendo RECOVER o WINDED),
 	# _can_flee() vuelve a true por la ventana de flee_duration y entra a FLEE.
 	if _can_flee():
 		return GoapActionId.FLEE
 
 	# RECOVER: descanso largo tras cobertura real, se mantiene hasta agotar
-	# su timer (interrumpido antes por _can_flee() arriba si lo golpean).
+	# su timer.
 	if _current_action == GoapActionId.RECOVER and _recover_timer > 0.0:
 		return GoapActionId.RECOVER
 
-	# WINDED: descanso corto tras un tramo de sprint sin cobertura. Al
-	# agotarse, revisa si el jugador sigue cerca: si sí, vuelve a FLEE
-	# (nuevo tramo de sprint); si no, cae a evaluación normal más abajo.
+	# WINDED: descanso corto tras un tramo de sprint sin cobertura.
 	if _current_action == GoapActionId.WINDED:
 		if _winded_timer > 0.0:
 			return GoapActionId.WINDED
@@ -517,10 +691,12 @@ func _evaluate_best_action() -> GoapActionId:
 			if dist < safe_distance_fallback:
 				return GoapActionId.FLEE
 
+	# curar aliados heridos tiene prioridad sobre deambular.
 	if _can_heal_ally():
 		_target_ally = _find_nearest_injured_ally()
 		return GoapActionId.HEAL_ALLY
 
+	# IDLE: mantenerse cerca de aliados en vez de aislarse en cobertura.
 	return GoapActionId.IDLE
 
 
@@ -569,7 +745,7 @@ func _execute_action(action: GoapActionId, delta: float) -> void:
 			_execute_idle(delta)
 
 
-# --- Heal Ally ---
+# --- HEAL ALLY ---
 
 func _can_heal_ally() -> bool:
 	if _heal_cooldown_timer > 0.0:
@@ -612,34 +788,52 @@ func _execute_heal_ally(delta: float) -> void:
 			pass
 
 
-# --- Flee ---
+# --- FLEE ---
+
+func _is_player_in_panic_range() -> bool:
+	var player := _get_player()
+	if player == null:
+		return false
+	var dist := global_position.distance_to(player.global_position)
+	return dist < panic_detect_range and _can_see_player_cached()
+
 
 func _can_flee() -> bool:
 	var now := Time.get_ticks_msec() * 0.001
 
-	# Trigger: el golpe más reciente marca el inicio de la ventana de huida.
+	# trigger: el golpe mas reciente marca el inicio de la ventana de huida.
 	if _last_hit_time > _flee_triggered_at:
 		_flee_triggered_at = _last_hit_time
 
-	return (now - _flee_triggered_at) < flee_duration
+	if (now - _flee_triggered_at) < flee_duration:
+		return true
+
+	# trigger adicional: tensión alta (jugador muy cerca y/o con linea de
+	# vision directa, sostenido en el tiempo) tambien fuerza huida, sin
+	# necesidad de haber recibido un golpe directo todavía.
+	return _tension_is_high()
 
 
 enum FleeExit { NONE, REAL_COVER, SPRINT_TIMEOUT }
 
 func _get_flee_exit_reason() -> FleeExit:
-	# Llamar SOLO mientras _current_action == FLEE: _action_elapsed se
+	# llamar SOLO mientras _current_action == FLEE: _action_elapsed se
 	# interpreta aquí como "tiempo corrido en este tramo de sprint".
-	var player := _get_player()
-	if player == null:
+
+	# eviter la oscilación FLEE ↔ RECOVER frame a frame: huir al menos 1s
+	# antes de evaluar si llegamos a destino.
+	if _action_elapsed < 1.0:
+		return FleeExit.NONE
+
+	# si el healer está cerca del flee_target, considera que llegó a destino
+	# (cobertura real o punto de huida) y pasa a recuperarse.
+	var dist_sq := global_position.distance_squared_to(_flee_target)
+	if dist_sq < 9.0:
 		return FleeExit.REAL_COVER
 
-	var space := get_world_3d().direct_space_state
-	if space != null and _is_position_hidden_from_player(global_position, player, space):
-		return FleeExit.REAL_COVER
-
-	# Sin cobertura real todavía: si ya corrió flee_sprint_duration segundos
+	# sin cobertura real todavía: si ya corrio flee_sprint_duration segundos
 	# en este tramo, toca un descanso corto (WINDED) y luego reevaluar, en
-	# vez de seguir huyendo indefinidamente.
+	# vez de seguir huyendo indefinidamente. (actualmente esta corriendo en linea recta, no se pq mierda)
 	if _action_elapsed >= flee_sprint_duration:
 		return FleeExit.SPRINT_TIMEOUT
 
@@ -647,12 +841,7 @@ func _get_flee_exit_reason() -> FleeExit:
 
 
 func _enter_flee() -> void:
-	var shield_result := _get_shield_waypoint_from_player()
-	var found_shield: bool = shield_result[0]
-	if found_shield:
-		_flee_target = shield_result[1]
-	else:
-		_flee_target = _get_flee_target_from_player()
+	_flee_target = _get_flee_target_from_player()
 	_body_material.albedo_color = Color(0.9, 0.3, 0.3, 1.0)
 	_head_material.albedo_color = Color(1.0, 0.4, 0.4, 1.0)
 
@@ -660,24 +849,26 @@ func _enter_flee() -> void:
 func _execute_flee(delta: float) -> void:
 	var dist_to_target := global_position.distance_to(_flee_target)
 	if dist_to_target < 2.0:
-		# Recálculos posteriores: alejarse del jugador en línea recta, sin
+		# recalculos posteriores: alejarse del jugador en línea recta, sin
 		# volver a atarse a la posición de un aliado.
 		_flee_target = _get_flee_target_from_player()
 
+	# _chase_toward ya orienta visualmente al healer hacia la dirección REAL
+	# de movimiento (la que da el NavigationAgent3D, que puede rodear una
+	# pared)(o eso deberia pero todo el sistema de navigation esta medio roto XD ).
+	# antes habia aca una segunda rotación forzando "mirar en línea
+	# recta lejos del jugador" sin importar hacia dónde se movía el cuerpo
+	# realmente, pero si el path rodeaba un obstaculo, el personaje terminaba
+	# movierndose hacia un lado mientras visualmente miraba hacia otro
+	# (caminando "de espaldas" respecto a su propia orientación). Se quito:
+	# la rotación de _chase_toward ya es la correcta en todos los casos.
 	_chase_toward(_flee_target, walk_speed * flee_speed_mult, delta)
 
-	var player := _get_player()
-	if player != null:
-		var away_dir := (global_position - player.global_position).normalized()
-		away_dir.y = 0.0
-		if away_dir.length_squared() > 0.001:
-			_visual_node.look_at(global_position + away_dir, Vector3.UP)
 
-
-# --- Recover ---
-# Se entra aquí justo después de FLEE, una vez que _has_reached_safety() dio
-# true (encontró cobertura real o ya está a safe_distance_fallback del
-# jugador). El healer se queda quieto "recuperando aliento" durante
+# --- RECOVER ---
+# se entra aquí justo después de FLEE, una vez que _has_reached_safety() dio
+# true (encontró cobertura real o ya está a safe_distance_fallback delj ugador).
+# el healer se queda quieto "recuperando aliento" durante
 # recover_duration segundos antes de volver a evaluar curar/cobertura. Si lo
 # golpean durante este tiempo, _can_flee() vuelve a true y _evaluate_best_action
 # saca de RECOVER de inmediato en la próxima evaluación.
@@ -696,12 +887,12 @@ func _execute_recover(delta: float) -> void:
 
 # --- Winded ---
 # Distinto de RECOVER: aquí el healer no encontró cobertura real, solo
-# agotó un tramo de sprint (flee_sprint_duration) huyendo en línea recta.
+# agoto un tramo de sprint (flee_sprint_duration) huyendo en linea recta.
 # Se detiene exhausto, sin esconderse de verdad — el jugador puede seguir
-# cerca. Es una pausa corta y tensa (winded_duration, 4-5s), no un respiro
-# seguro. Al terminar, _evaluate_best_action revisa si el jugador sigue
-# cerca: si sí, vuelve a FLEE para otro tramo de sprint; si no, pasa a
-# evaluación normal.
+# cerca. es una pausa corta y tensa (winded_duration, 4-5s), no un respiro
+# seguro. Aal terminar, _evaluate_best_action revisa si el jugador sigue
+# cerca: vuelve a FLEE para otro tramo de sprint; si no, pasa a evaluación normal.
+#actualmente esta es la unica wea que hace, creo que es algo con el pathing y por eso no detecta nada
 
 func _enter_winded() -> void:
 	_winded_timer = winded_duration
@@ -716,56 +907,37 @@ func _execute_winded(delta: float) -> void:
 
 
 # --- Idle ---
-# Ahora tiene dos modos, evaluados en cada frame:
-#   1) Si hay un aliado cercano disponible: posicionarse en la línea
-#      jugador -> aliado -> healer (el aliado queda de escudo). Esto se
-#      recalcula constantemente porque tanto jugador como aliado se mueven,
-#      así que el healer estará en movimiento la mayor parte del tiempo.
-#   2) Si NO hay ningún aliado disponible: cae al comportamiento anterior,
-#      cobertura geométrica estática (igual que antes).
-
-@export var ally_shield_search_range: float = 20.0
+# el healer debe mantenerse cerca de sus aliados para poder curarlos, no
+# aislarse en cobertura como un enemigo cualquiera. en IDLE busca una
+# posición cerca del aliado más cercano (o cobertura si no hay aliados).
+# la huida y el pánico viven en el sistema de Tensión, no en IDLE.
 
 func _enter_idle() -> void:
-	_cover_target = _find_nearest_cover()
+	_cover_target = _find_idle_position()
 	_cover_recalc_cooldown = COVER_RECALC_INTERVAL
 
 
 func _execute_idle(delta: float) -> void:
-	var shield_result := _get_shield_waypoint_from_player()
-	var found_shield: bool = shield_result[0]
-	var shield_ally: Node3D = shield_result[2] if found_shield else null
-
-	if found_shield and shield_ally != null:
-		var dist_to_shield_source := global_position.distance_to(shield_ally.global_position)
-		if dist_to_shield_source <= ally_shield_search_range:
-			_execute_shield_positioning(shield_result[1], delta)
-			return
-
 	_execute_static_cover(delta)
-
-
-func _execute_shield_positioning(target_pos: Vector3, delta: float) -> void:
-	# Se recalcula cada frame en _execute_idle (vía _get_shield_waypoint_from_player),
-	# así que aquí solo nos movemos hacia el punto más reciente.
-	if target_pos.distance_squared_to(global_position) > 0.04:
-		_chase_toward(target_pos, walk_speed * 0.6, delta)
-	else:
-		_stand_still(delta)
-	_reset_material_colors()
 
 
 func _execute_static_cover(delta: float) -> void:
 	if _cover_recalc_cooldown > 0.0:
 		_cover_recalc_cooldown = maxf(_cover_recalc_cooldown - delta, 0.0)
 
+	_cover_memory_scan_timer -= delta
+	if _cover_memory_scan_timer <= 0.0:
+		_cover_memory_scan_timer = COVER_MEMORY_SCAN_INTERVAL
+		var player := _get_player()
+		var space := get_world_3d().direct_space_state
+		if player != null and space != null:
+			_refresh_cover_memory(player, space)
+
 	var dist_to_cover := global_position.distance_to(_cover_target)
 	var reached_cover := dist_to_cover < 1.0
 	var stale_timer := _action_elapsed > 5.0
 
-	# Pregunta única, sin importar si ya llegué o sigo en camino: ¿el jugador
-	# puede verme AHORA, en mi posición real? Si sí, la cobertura actual (la
-	# alcancé o no) ya no sirve y hay que recalcular. El cooldown evita que
+	# el cooldown evita que
 	# esto dispare cover_scan_rays raycasts en cada frame mientras camino
 	# expuesto hacia el punto destino.
 	var exposed := false
@@ -776,7 +948,7 @@ func _execute_static_cover(delta: float) -> void:
 			exposed = not _is_position_hidden_from_player(global_position, player, space)
 
 	if reached_cover or stale_timer or exposed:
-		_cover_target = _find_nearest_cover()
+		_cover_target = _find_idle_position()
 		_action_elapsed = 0.0
 		_cover_recalc_cooldown = COVER_RECALC_INTERVAL
 

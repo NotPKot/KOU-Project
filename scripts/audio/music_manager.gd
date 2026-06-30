@@ -1,13 +1,4 @@
 extends Node
-## Music Manager centralizado.
-##
-## Los enemigos, jefes y triggers NUNCA cambian la música directamente.
-## Solo llaman a estas funciones públicas:
-##   register_threat(source) / unregister_threat(source)
-##   force_boss_music(source) / release_boss_music(source)
-##   force_special_event(source) / release_special_event(source)
-##
-## El Music Manager decide internamente en qué EMusicState está el juego.
 
 enum EMusicState { CALM, TENSION, COMBAT, BOSS, SPECIAL_EVENT }
 
@@ -20,19 +11,9 @@ signal music_state_changed(new_state: EMusicState, old_state: EMusicState)
 @export var combat_end_delay: float = 10.0
 
 var current_state: EMusicState = EMusicState.CALM
-
-# Conjuntos de fuentes (enemigos/triggers) que mantienen viva cada amenaza.
-# Solo se usan para CALM/TENSION/COMBAT. Boss y SpecialEvent se manejan
-# como pilas de overrides independientes (ver más abajo), porque son
-# estados forzados, no derivados de amenazas.
 var _threat_sources: Dictionary = {} # Node -> true
-
-# Pilas de quién está forzando Boss / SpecialEvent. Se usa una pila (array)
-# en vez de un booleano para soportar múltiples triggers solapados sin que
-# uno cancele la música del otro por error (p.ej. dos triggers de boss).
 var _boss_sources: Array = []
 var _special_event_sources: Array = []
-
 var _combat_start_timer: Timer
 var _combat_end_timer: Timer
 
@@ -52,10 +33,9 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------------------
-# API pública: eventos que envían enemigos / triggers / jefes
+# API publica: eventos que envían enemigos / triggers / jefes
 # ---------------------------------------------------------------------------
 
-## Una amenaza aparece o sigue activa (ej: un enemigo detecta al jugador).
 func register_threat(source: Node) -> void:
 	if source == null or _threat_sources.has(source):
 		return
@@ -63,7 +43,6 @@ func register_threat(source: Node) -> void:
 	_on_threat_registered()
 
 
-## Una amenaza deja de existir (ej: el enemigo muere o pierde al jugador).
 func unregister_threat(source: Node) -> void:
 	if source == null or not _threat_sources.has(source):
 		return
@@ -71,7 +50,6 @@ func unregister_threat(source: Node) -> void:
 	_on_threat_unregistered()
 
 
-## Fuerza el estado Boss. Tiene prioridad sobre Calm/Tension/Combat.
 func force_boss_music(source: Node) -> void:
 	if source == null or source in _boss_sources:
 		return
@@ -79,15 +57,10 @@ func force_boss_music(source: Node) -> void:
 	_refresh_forced_state()
 
 
-## Libera el Boss. La música solo deja de forzarse cuando NINGÚN source
-## lo está reteniendo (soporta varios triggers de boss simultáneos).
 func release_boss_music(source: Node) -> void:
 	_boss_sources.erase(source)
 	_refresh_forced_state()
 
-
-## Fuerza el estado SpecialEvent (cinemáticas, persecuciones, etc).
-## Tiene la prioridad máxima, por encima incluso de Boss.
 func force_special_event(source: Node) -> void:
 	if source == null or source in _special_event_sources:
 		return
@@ -102,32 +75,24 @@ func release_special_event(source: Node) -> void:
 
 
 # ---------------------------------------------------------------------------
-# Lógica interna de amenazas (Calm / Tension / Combat)
+# logica interna de amenazas (Calm / Tension / Combat)
 # ---------------------------------------------------------------------------
 
 func _on_threat_registered() -> void:
-	# Si estamos en un estado forzado (Boss/SpecialEvent), las amenazas
-	# normales no deben tocar la música. Se evaluarán solas cuando el
-	# estado forzado termine.
 	if _is_forced_state():
 		return
 
 	if current_state == EMusicState.COMBAT:
-		# Ya en combate: cualquier timer de salida pendiente queda obsoleto.
 		_combat_end_timer.stop()
 		return
 
 	if current_state == EMusicState.TENSION:
-		# Si había un timer de salida corriendo (veníamos de Combat),
-		# una nueva amenaza lo cancela: seguimos en Tension normalmente.
 		_combat_end_timer.stop()
-		# Si no hay timer de entrada corriendo, lo arrancamos.
+
 		if _combat_start_timer.is_stopped():
 			_combat_start_timer.start(combat_start_delay)
 		return
 
-	# Desde Calm: entra primero a Tension y arranca el temporizador
-	# de entrada al combate (nunca salta directo a Combat).
 	_set_state(EMusicState.TENSION)
 	_combat_start_timer.start(combat_start_delay)
 
@@ -137,19 +102,16 @@ func _on_threat_unregistered() -> void:
 		return
 
 	if not _threat_sources.is_empty():
-		# Aún quedan amenazas activas, no hay nada que resolver todavía.
 		return
 
-	# Ya no quedan amenazas.
 	_combat_start_timer.stop()
 
 	match current_state:
 		EMusicState.TENSION:
-			# La amenaza desapareció antes de escalar a combate -> Calm.
+			
 			_set_state(EMusicState.CALM)
 		EMusicState.COMBAT:
-			# El combate terminó: no volvemos a Calm de inmediato.
-			# Pasamos a Tension y arrancamos el temporizador de salida.
+			
 			_set_state(EMusicState.TENSION)
 			_combat_end_timer.start(combat_end_delay)
 		_:
@@ -159,7 +121,7 @@ func _on_threat_unregistered() -> void:
 func _on_combat_start_timeout() -> void:
 	if _is_forced_state():
 		return
-	# Si seguimos en Tension y la amenaza persiste, escalamos a Combat.
+
 	if current_state == EMusicState.TENSION and not _threat_sources.is_empty():
 		_set_state(EMusicState.COMBAT)
 
@@ -167,13 +129,13 @@ func _on_combat_start_timeout() -> void:
 func _on_combat_end_timeout() -> void:
 	if _is_forced_state():
 		return
-	# Si en estos 10s no apareció ninguna amenaza nueva, volvemos a Calm.
+
 	if current_state == EMusicState.TENSION and _threat_sources.is_empty():
 		_set_state(EMusicState.CALM)
 
 
 # ---------------------------------------------------------------------------
-# Lógica de estados forzados (Boss / SpecialEvent)
+# logica de estados forzados (Boss / SpecialEvent)
 # ---------------------------------------------------------------------------
 
 func _is_forced_state() -> bool:
@@ -182,7 +144,7 @@ func _is_forced_state() -> bool:
 
 func _refresh_forced_state() -> void:
 	if not _special_event_sources.is_empty():
-		# Prioridad máxima.
+		# prioridad maxima.
 		_set_state(EMusicState.SPECIAL_EVENT)
 		return
 
@@ -190,29 +152,22 @@ func _refresh_forced_state() -> void:
 		_set_state(EMusicState.BOSS)
 		return
 
-	# Ningún estado forzado activo: volvemos a evaluar según las amenazas
-	# normales, exactamente como si acabáramos de llegar desde fuera.
 	if current_state == EMusicState.BOSS or current_state == EMusicState.SPECIAL_EVENT:
 		_resume_threat_based_state()
 
 
-## Se llama al salir de Boss/SpecialEvent para recalcular el estado
-## correcto en base a las amenazas que pudieran haber quedado activas
-## mientras el estado forzado estaba ocurriendo.
+
 func _resume_threat_based_state() -> void:
 	if _threat_sources.is_empty():
 		_set_state(EMusicState.CALM)
 		return
 
-	# Hay amenazas activas: entramos en Tension y, como ya llevan tiempo
-	# activas (posiblemente desde antes del Boss/SpecialEvent), iniciamos
-	# el temporizador de entrada a combate de nuevo para decidir si escala.
 	_set_state(EMusicState.TENSION)
 	_combat_start_timer.start(combat_start_delay)
 
 
 # ---------------------------------------------------------------------------
-# Utilidades
+# utilidades
 # ---------------------------------------------------------------------------
 
 func _set_state(new_state: EMusicState) -> void:
@@ -225,6 +180,6 @@ func _set_state(new_state: EMusicState) -> void:
 
 const STATE_NAMES := ["CALM", "TENSION", "COMBAT", "BOSS", "SPECIAL_EVENT"]
 
-## Útil para debug / UI.
+## itil para debug / UI.
 func get_state_name() -> String:
 	return STATE_NAMES[current_state]

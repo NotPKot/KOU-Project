@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://ba6pxo42og7ol"
+path="res://.godot/imported/Background Music.mp3-af0189d23761bee0576d8663e0792b1d.mp3str"
+
+[deps]
+
+source_file="res://REFERENCIA/GOAP PARA HEALER/GOAP-master(1)/Assets/Audio/Music/Background Music.mp3"
+dest_files=["res://.godot/imported/Background Music.mp3-af0189d23761bee0576d8663e0792b1d.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
