@@ -67,18 +67,15 @@ func _process(delta: float) -> void:
 	_update_fsm(delta)
 
 
-func _physics_process(delta: float) -> void:
-	_apply_gravity(delta)
-	move_and_slide()
-
-
-func _can_see_player_cached() -> bool:
-	var frame := Engine.get_process_frames()
-	if frame == _can_see_frame:
-		return _can_see_cache
-	_can_see_frame = frame
-	_can_see_cache = _can_see_player()
-	return _can_see_cache
+func _process_effects(delta: float) -> void:
+	var expired: Array[String] = []
+	for name in _effects:
+		var e: StatusEffect = _effects[name]
+		if e.tick(delta):
+			expired.append(name)
+			e.remove()
+	for name in expired:
+		_effects.erase(name)
 
 
 func _update_vision(delta: float) -> void:
@@ -95,13 +92,6 @@ func _update_vision(delta: float) -> void:
 		if _tension_registered and _sight_loss_timer >= lose_sight_time:
 			_tension_registered = false
 			MusicManager.unregister_threat(self)
-
-
-func _apply_gravity(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y = max(velocity.y - gravity * delta, -terminal_velocity)
-	elif velocity.y < 0.0:
-		velocity.y = -0.1
 
 
 func _update_fsm(delta: float) -> void:
@@ -172,6 +162,48 @@ func _check_transitions() -> void:
 				_change_state(State.IDLE)
 
 
+func _chase(delta: float) -> void:
+	if _player == null:
+		return
+
+	_chase_target = _chase_target.lerp(_player.global_position, delta * 0.5)
+	var dir := (_chase_target - global_position).normalized()
+	dir.y = 0.0
+
+	velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
+	velocity.z = move_toward(velocity.z, dir.z * walk_speed, acceleration * delta)
+
+	if dir.length_squared() > 0.001:
+		_visual.look_at(global_position + dir, Vector3.UP)
+
+
+func _process_submerge(delta: float) -> void:
+	var t: float = _state_elapsed / submerge_time
+	_visual.position.y = lerpf(_original_visual_y, -1.5, t)
+	_body_material.albedo_color.a = 1.0 - t
+	_body_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+
+func _process_tracking(delta: float) -> void:
+	global_position = global_position.lerp(_track_target, delta * 4.0)
+	_indicator.global_position = Vector3(_track_target.x, 0.0, _track_target.z)
+	var emerge_alert: float = track_duration - 1.0
+	if _state_elapsed >= emerge_alert:
+		var alpha: float = 0.25 + sin(_state_elapsed * 20.0) * 0.3
+		_indicator_material.albedo_color.a = clampf(alpha, 0.0, 0.6)
+
+
+func _process_emerge(delta: float) -> void:
+	var t: float = _state_elapsed / emerge_time
+	_visual.position.y = lerpf(-1.5, _original_visual_y, t)
+	_body_material.albedo_color.a = t
+
+
+func _stand_still(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
+	velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
+
+
 func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_elapsed = 0.0
@@ -184,6 +216,36 @@ func _change_state(new_state: State) -> void:
 			_visual.position.y = -1.5
 		State.COOLDOWN:
 			_visual.position.y = _original_visual_y
+
+
+func _deal_emerge_damage() -> void:
+	if _player == null:
+		return
+	var dist := global_position.distance_to(_player.global_position)
+	if dist <= indicator_radius:
+		if _player.has_method("take_damage"):
+			_player.take_damage(emerge_damage)
+
+
+func _physics_process(delta: float) -> void:
+	_apply_gravity(delta)
+	move_and_slide()
+
+
+func _apply_gravity(delta: float) -> void:
+	if not is_on_floor():
+		velocity.y = max(velocity.y - gravity * delta, -terminal_velocity)
+	elif velocity.y < 0.0:
+		velocity.y = -0.1
+
+
+func _can_see_player_cached() -> bool:
+	var frame := Engine.get_process_frames()
+	if frame == _can_see_frame:
+		return _can_see_cache
+	_can_see_frame = frame
+	_can_see_cache = _can_see_player()
+	return _can_see_cache
 
 
 func _can_see_player() -> bool:
@@ -227,68 +289,6 @@ func apply_effect(effect: StatusEffect) -> void:
 
 func has_effect(name: String) -> bool:
 	return _effects.has(name)
-
-
-func _process_effects(delta: float) -> void:
-	var expired: Array[String] = []
-	for name in _effects:
-		var e: StatusEffect = _effects[name]
-		if e.tick(delta):
-			expired.append(name)
-			e.remove()
-	for name in expired:
-		_effects.erase(name)
-
-
-func _chase(delta: float) -> void:
-	if _player == null:
-		return
-
-	_chase_target = _chase_target.lerp(_player.global_position, delta * 0.5)
-	var dir := (_chase_target - global_position).normalized()
-	dir.y = 0.0
-
-	velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
-	velocity.z = move_toward(velocity.z, dir.z * walk_speed, acceleration * delta)
-
-	if dir.length_squared() > 0.001:
-		_visual.look_at(global_position + dir, Vector3.UP)
-
-
-func _process_submerge(delta: float) -> void:
-	var t: float = _state_elapsed / submerge_time
-	_visual.position.y = lerpf(_original_visual_y, -1.5, t)
-	_body_material.albedo_color.a = 1.0 - t
-	_body_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-
-func _process_tracking(delta: float) -> void:
-	global_position = global_position.lerp(_track_target, delta * 4.0)
-	_indicator.global_position = Vector3(_track_target.x, 0.0, _track_target.z)
-	var emerge_alert: float = track_duration - 1.0
-	if _state_elapsed >= emerge_alert:
-		var alpha: float = 0.25 + sin(_state_elapsed * 20.0) * 0.3
-		_indicator_material.albedo_color.a = clampf(alpha, 0.0, 0.6)
-
-
-func _process_emerge(delta: float) -> void:
-	var t: float = _state_elapsed / emerge_time
-	_visual.position.y = lerpf(-1.5, _original_visual_y, t)
-	_body_material.albedo_color.a = t
-
-
-func _deal_emerge_damage() -> void:
-	if _player == null:
-		return
-	var dist := global_position.distance_to(_player.global_position)
-	if dist <= indicator_radius:
-		if _player.has_method("take_damage"):
-			_player.take_damage(emerge_damage)
-
-
-func _stand_still(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
-	velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
 
 
 func take_damage(amount: int) -> void:
