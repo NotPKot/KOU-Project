@@ -1,0 +1,3 @@
+Kou Project es el nombre temporal del videojuego que estamos desarrollando yo y unos amigos en nuestro tiempo libre.
+como no tenemos ni puta idea de lo que estamos haciendo, si estas leyendo esto y no eres un interno...
+significa que hicimos un pesimo trabajo resguardando la seguridad del proyecto
