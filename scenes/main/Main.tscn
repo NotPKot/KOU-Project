@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://scenes/orbs/HealOrb.tscn" id="11_qkm1d"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CooldownHud.tscn" id="12_cooldown_hud"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/CoverWalls.tscn" id="13_cover_walls"]
+[ext_resource type="Script" uid="uid://dm6p440qlsn5o" path="res://scripts/enemies/enemies_manager.gd" id="14_enemies_manager"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -23,8 +24,8 @@ ambient_light_color = Color(0.75, 0.8, 0.85, 1)
 ambient_light_energy = 0.75
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_jsdfw"]
-vertices = PackedVector3Array(-59.5, 0.35, -59.5, -59.5, 0.35, 59.5, 59.5, 0.35, 59.5, 59.5, 0.35, -59.5)
-polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1)]
+vertices = PackedVector3Array(27, 0.35, 17.5, 31.75, 0.35, 17.25, 32.25, 0.35, 15.25, 32.5, 0.35, 10.5, 34.25, 0.35, 25.75, 34, 0.35, 24.5, 31.75, 0.35, 19, 27.25, 0.35, 19, -59.5, 0.35, 59.5, 35.5, 0.35, 59.5, 37.75, 0.35, 1.5, 42.25, 0.35, 1.5, 59.5, 0.35, 1.25, 59.5, 0.35, -59.5, 33.75, 0.35, 10.25, 37.5, 0.35, 2.75, 35.75, 0.35, 25.75, -59.5, 0.35, -59.5, 49.25, 0.35, 12, 49.75, 0.35, 15.5, 59.5, 0.35, 15.25, 42.75, 0.35, 1.75, 42.75, 0.35, 2.75, 48, 0.35, 11.75, 44, 0.35, 15.75, 44.25, 0.35, 16.25, 48, 0.35, 15.75, 47.5, 0.35, 12, 38.75, 0.35, 15.75, 42.5, 0.35, 3.25, 37.75, 0.35, 3.25, 34.25, 0.35, 10.5, 34, 0.35, 15, 32.25, 0.35, 17.5, 33.75, 0.35, 15.5, 34.25, 0.35, 24, 32.25, 0.35, 18.75, 38.75, 0.35, 24, 39, 0.35, 21, 38.5, 0.35, 20.75, 39.25, 0.35, 24.25, 40.25, 0.35, 20.75, 49.5, 0.35, 17, 39.25, 0.35, 25.5, 37.75, 0.35, 59.5, 59.5, 0.35, 59.5, 48.25, 0.35, 17, 44, 0.35, 17.5, 40.25, 0.35, 17.5, 37.5, 0.35, 25.75)
+polygons = [PackedInt32Array(1, 0, 2), PackedInt32Array(2, 0, 3), PackedInt32Array(5, 4, 6), PackedInt32Array(6, 4, 7), PackedInt32Array(7, 4, 9), PackedInt32Array(7, 9, 8), PackedInt32Array(11, 10, 12), PackedInt32Array(12, 10, 13), PackedInt32Array(14, 3, 15), PackedInt32Array(15, 3, 10), PackedInt32Array(4, 16, 9), PackedInt32Array(0, 7, 8), PackedInt32Array(3, 0, 10), PackedInt32Array(10, 0, 13), PackedInt32Array(13, 0, 17), PackedInt32Array(17, 0, 8), PackedInt32Array(20, 19, 18), PackedInt32Array(22, 21, 23), PackedInt32Array(23, 21, 18), PackedInt32Array(12, 21, 11), PackedInt32Array(20, 18, 12), PackedInt32Array(12, 18, 21), PackedInt32Array(25, 24, 26), PackedInt32Array(26, 24, 27), PackedInt32Array(27, 28, 23), PackedInt32Array(23, 28, 31), PackedInt32Array(23, 31, 29), PackedInt32Array(29, 31, 30), PackedInt32Array(32, 31, 28), PackedInt32Array(31, 14, 30), PackedInt32Array(30, 14, 15), PackedInt32Array(29, 22, 23), PackedInt32Array(27, 24, 28), PackedInt32Array(1, 2, 33), PackedInt32Array(33, 2, 34), PackedInt32Array(36, 35, 6), PackedInt32Array(6, 35, 5), PackedInt32Array(38, 37, 39), PackedInt32Array(39, 37, 35), PackedInt32Array(36, 33, 34), PackedInt32Array(34, 32, 36), PackedInt32Array(36, 32, 28), PackedInt32Array(36, 28, 39), PackedInt32Array(36, 39, 35), PackedInt32Array(37, 38, 40), PackedInt32Array(40, 38, 41), PackedInt32Array(42, 20, 43), PackedInt32Array(43, 20, 44), PackedInt32Array(44, 20, 45), PackedInt32Array(26, 46, 25), PackedInt32Array(25, 46, 47), PackedInt32Array(42, 19, 20), PackedInt32Array(40, 41, 43), PackedInt32Array(43, 41, 47), PackedInt32Array(43, 47, 46), PackedInt32Array(43, 46, 42), PackedInt32Array(41, 48, 47), PackedInt32Array(44, 49, 43), PackedInt32Array(16, 49, 9), PackedInt32Array(9, 49, 44)]
 
 [node name="Main" type="Node3D" unique_id=956873530]
 script = ExtResource("7_main_script")
@@ -92,28 +93,56 @@ grow_vertical = 0
 
 [node name="PauseMenu" parent="." unique_id=708856309 instance=ExtResource("10_pause_menu")]
 
+[node name="Enemies" type="Node3D" parent="." unique_id=2098839200]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.30845, 0, 14.01933)
+script = ExtResource("14_enemies_manager")
+
+[node name="HealerEnemy" parent="Enemies" unique_id=1696808273 instance=ExtResource("3_2tpxt")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.9307175, 0, 5.373868)
+
+[node name="Visual" parent="Enemies/HealerEnemy" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+
+[node name="Head" parent="Enemies/HealerEnemy/Visual" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+
+[node name="CollisionShape3D" parent="Enemies/HealerEnemy" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+
+[node name="NavigationAgent3D" parent="Enemies/HealerEnemy" index="2"]
+avoidance_enabled = true
+
+[node name="BasicEnemy" parent="Enemies" unique_id=248351038 instance=ExtResource("3_q24mn")]
+
+[node name="CalmyrEnemy" parent="Enemies" unique_id=1165541328 instance=ExtResource("8_calmyr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
+
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=643454832]
 navigation_mesh = SubResource("NavigationMesh_jsdfw")
 
-[node name="Enemies" type="Node3D" parent="NavigationRegion3D" unique_id=2098839200]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.30845, 0, 14.01933)
+[node name="Walls" type="Node3D" parent="NavigationRegion3D" unique_id=745420701]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6869783, 0, -4.1792474)
 
-[node name="HealerEnemy" parent="NavigationRegion3D/Enemies" unique_id=1696808273 instance=ExtResource("3_2tpxt")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.9307175, 0, 5.373868)
+[node name="CoverWall" parent="NavigationRegion3D/Walls" unique_id=694595428 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0.008726561, 0, 0.9999619, 0, 1, 0, -0.9999619, 0, 0.008726561, 43.126896, 1.2282643, 22.48796)
 
-[node name="Visual" parent="NavigationRegion3D/Enemies/HealerEnemy" index="0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+[node name="CoverWall2" parent="NavigationRegion3D/Walls" unique_id=304141161 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.7395, 1.25, 6.633394)
 
-[node name="Head" parent="NavigationRegion3D/Enemies/HealerEnemy/Visual" index="1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+[node name="CoverWall3" parent="NavigationRegion3D/Walls" unique_id=1611277648 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0.054078843, 0, 0.99853665, 0, 1, 0, -0.99853665, 0, 0.054078843, 36.90195, 1.25, 17.010853)
 
-[node name="CollisionShape3D" parent="NavigationRegion3D/Enemies/HealerEnemy" index="1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+[node name="CoverWall4" parent="NavigationRegion3D/Walls" unique_id=657892949 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45.24561, 1.25, 20.763063)
 
-[node name="BasicEnemy" parent="NavigationRegion3D/Enemies" unique_id=248351038 instance=ExtResource("3_q24mn")]
+[node name="CoverWall5" parent="NavigationRegion3D/Walls" unique_id=1021686886 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(-0.16160385, 0, 0.9868557, 0, 1, 0, -0.9868557, 0, -0.16160385, 52.295586, 1.2124999, 18.517723)
 
-[node name="CalmyrEnemy" parent="NavigationRegion3D/Enemies" unique_id=1165541328 instance=ExtResource("8_calmyr")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
+[node name="CoverWall6" parent="NavigationRegion3D/Walls" unique_id=624038477 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40.295654, 1.25, 29.07347)
+
+[node name="CoverWall7" parent="NavigationRegion3D/Walls" unique_id=197928458 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.26605, 1.25, 22.235405)
 
 [node name="PracticeGround" parent="NavigationRegion3D" unique_id=430140652 instance=ExtResource("2_practice_ground")]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
@@ -124,30 +153,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
 [node name="OriginMarker" parent="NavigationRegion3D/PracticeGround" index="1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 
-[node name="Walls" type="Node3D" parent="." unique_id=745420701]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6869783, 0, -4.1792474)
-
-[node name="CoverWall" parent="Walls" unique_id=694595428 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(0.008726561, 0, 0.9999619, 0, 1, 0, -0.9999619, 0, 0.008726561, 43.126896, 1.2282643, 22.48796)
-
-[node name="CoverWall2" parent="Walls" unique_id=304141161 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.7395, 1.25, 6.633394)
-
-[node name="CoverWall3" parent="Walls" unique_id=1611277648 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(0.054078843, 0, 0.99853665, 0, 1, 0, -0.99853665, 0, 0.054078843, 36.90195, 1.25, 17.010853)
-
-[node name="CoverWall4" parent="Walls" unique_id=657892949 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45.24561, 1.25, 20.763063)
-
-[node name="CoverWall5" parent="Walls" unique_id=1021686886 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(-0.16160385, 0, 0.9868557, 0, 1, 0, -0.9868557, 0, -0.16160385, 52.295586, 1.2124999, 18.517723)
-
-[node name="CoverWall6" parent="Walls" unique_id=624038477 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40.295654, 1.25, 29.07347)
-
-[node name="CoverWall7" parent="Walls" unique_id=197928458 instance=ExtResource("13_cover_walls")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.26605, 1.25, 22.235405)
-
 [editable path="Player"]
-[editable path="NavigationRegion3D/Enemies/HealerEnemy"]
+[editable path="Enemies/HealerEnemy"]
 [editable path="NavigationRegion3D/PracticeGround"]

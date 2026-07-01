@@ -21,7 +21,7 @@ enum State { IDLE, CHASING, SUBMERGING, TRACKING, EMERGING, COOLDOWN, STUNNED }
 var hp: int
 var _state: State = State.IDLE
 var _state_elapsed: float = 0.0
-var _player: Node3D = null
+var _target: Node3D = null
 var _body_material: StandardMaterial3D
 var _body_base_color: Color = Color(0.6, 0.15, 0.25, 1.0)
 var _tension_registered: bool = false
@@ -44,7 +44,6 @@ var _chase_target: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
-	_player = get_tree().get_first_node_in_group("player") as Node3D
 
 	_body_material = StandardMaterial3D.new()
 	_body_material.albedo_color = _body_base_color
@@ -79,7 +78,7 @@ func _process_effects(delta: float) -> void:
 
 
 func _update_vision(delta: float) -> void:
-	if _player == null:
+	if _target == null:
 		return
 	var can_see := _can_see_player_cached()
 	if can_see:
@@ -116,7 +115,7 @@ func _update_fsm(delta: float) -> void:
 
 
 func _check_transitions() -> void:
-	if _player == null:
+	if _target == null:
 		return
 
 	match _state:
@@ -131,14 +130,15 @@ func _check_transitions() -> void:
 				_change_state(State.SUBMERGING)
 
 		State.SUBMERGING:
-			if _state_elapsed >= submerge_time:
-				_track_target = _player.global_position
+			if _state_elapsed >= submerge_time and _target != null:
+				_track_target = _target.global_position
 				_indicator.global_position = Vector3(_track_target.x, 0.0, _track_target.z)
 				_indicator.visible = true
 				_change_state(State.TRACKING)
 
 		State.TRACKING:
-			_track_target = _player.global_position
+			if _target != null:
+				_track_target = _target.global_position
 			_indicator.global_position = _track_target
 
 			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
@@ -163,10 +163,10 @@ func _check_transitions() -> void:
 
 
 func _chase(delta: float) -> void:
-	if _player == null:
+	if _target == null:
 		return
 
-	_chase_target = _chase_target.lerp(_player.global_position, delta * 0.5)
+	_chase_target = _chase_target.lerp(_target.global_position, delta * 0.5)
 	var dir := (_chase_target - global_position).normalized()
 	dir.y = 0.0
 
@@ -219,12 +219,12 @@ func _change_state(new_state: State) -> void:
 
 
 func _deal_emerge_damage() -> void:
-	if _player == null:
+	if _target == null:
 		return
-	var dist := global_position.distance_to(_player.global_position)
+	var dist := global_position.distance_to(_target.global_position)
 	if dist <= indicator_radius:
-		if _player.has_method("take_damage"):
-			_player.take_damage(emerge_damage)
+		if _target.has_method("take_damage"):
+			_target.take_damage(emerge_damage)
 
 
 func _physics_process(delta: float) -> void:
@@ -239,6 +239,10 @@ func _apply_gravity(delta: float) -> void:
 		velocity.y = -0.1
 
 
+func set_target(p: Node3D) -> void:
+	_target = p
+
+
 func _can_see_player_cached() -> bool:
 	var frame := Engine.get_process_frames()
 	if frame == _can_see_frame:
@@ -249,10 +253,10 @@ func _can_see_player_cached() -> bool:
 
 
 func _can_see_player() -> bool:
-	if _player == null:
+	if _target == null:
 		return false
 
-	var to_player := _player.global_position - global_position
+	var to_player := _target.global_position - global_position
 	var dist := to_player.length()
 	if dist > vision_range:
 		return false
@@ -270,9 +274,9 @@ func _can_see_player() -> bool:
 
 	var query := PhysicsRayQueryParameters3D.new()
 	query.from = global_position + Vector3.UP * 0.5
-	query.to = _player.global_position + Vector3.UP * 0.5
+	query.to = _target.global_position + Vector3.UP * 0.5
 	query.collision_mask = 1
-	query.exclude = [get_rid(), _player.get_rid()]
+	query.exclude = [get_rid(), _target.get_rid()]
 	var result := space.intersect_ray(query)
 	return result.is_empty()
 

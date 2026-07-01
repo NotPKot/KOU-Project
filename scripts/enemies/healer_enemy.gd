@@ -38,8 +38,7 @@ const COVER_MIN_DIST: float = 3.0
 
 var hp: int
 
-var _player: Node3D = null
-var _player_search_done: bool = false
+var _target: Node3D = null
 
 var _sight_loss_timer: float = 0.0
 var _tension_registered: bool = false
@@ -118,8 +117,12 @@ func _ready() -> void:
 	_nav_agent.path_desired_distance = 1.0
 	_nav_agent.target_desired_distance = 1.0
 	_nav_agent.radius = 0.4
+	_nav_agent.height = 1.8
 	_nav_agent.max_speed = walk_speed * flee_speed_mult
-	_nav_agent.avoidance_enabled = false
+	_nav_agent.neighbor_distance = 5.0
+	_nav_agent.time_horizon = 2.0
+	_nav_agent.avoidance_enabled = true
+	_nav_agent.velocity_computed.connect(_on_nav_velocity_computed)
 
 	floor_block_on_wall = false
 
@@ -150,7 +153,7 @@ func _process_effects(delta: float) -> void:
 # --- _update_vision ---
 
 func _update_vision(delta: float) -> void:
-	var player := _get_player()
+	var player := _target
 	if player == null:
 		return
 
@@ -169,11 +172,8 @@ func _update_vision(delta: float) -> void:
 			MusicManager.unregister_threat(self)
 
 
-func _get_player() -> Node3D:
-	if _player == null and not _player_search_done:
-		_player_search_done = true
-		_player = get_tree().get_first_node_in_group("player") as Node3D
-	return _player
+func set_target(p: Node3D) -> void:
+	_target = p
 
 
 func _can_see_player_cached() -> bool:
@@ -186,7 +186,7 @@ func _can_see_player_cached() -> bool:
 
 
 func _can_see_player() -> bool:
-	var player := _get_player()
+	var player := _target
 	if player == null:
 		return false
 
@@ -224,7 +224,7 @@ func _get_vision_query() -> PhysicsRayQueryParameters3D:
 # --- _update_tension ---
 
 func _update_tension(delta: float) -> void:
-	var player := _get_player()
+	var player := _target
 	if player == null:
 		_healer_tension = maxf(_healer_tension - tension_decay_rate * delta, 0.0)
 		return
@@ -314,8 +314,6 @@ func _evaluate_goap(delta: float) -> void:
 		_action_elapsed = 0.0
 		_enter_action(_current_action)
 
-	_execute_action(_current_action, delta)
-
 
 func _evaluate_best_action() -> GoapActionId:
 	if _current_action == GoapActionId.FLEE:
@@ -335,23 +333,23 @@ func _evaluate_best_action() -> GoapActionId:
 			return GoapActionId.HEAL_ALLY
 		_target_ally = null
 
-	if _current_action == GoapActionId.IDLE and _is_player_in_panic_range():
-		return GoapActionId.FLEE
-
-	if _can_flee():
-		return GoapActionId.FLEE
-
 	if _current_action == GoapActionId.RECOVER and _recover_timer > 0.0:
 		return GoapActionId.RECOVER
 
 	if _current_action == GoapActionId.WINDED:
 		if _winded_timer > 0.0:
 			return GoapActionId.WINDED
-		var player := _get_player()
+		var player := _target
 		if player != null:
 			var dist := global_position.distance_to(player.global_position)
 			if dist < safe_distance_fallback:
 				return GoapActionId.FLEE
+
+	if _current_action == GoapActionId.IDLE and _is_player_in_panic_range():
+		return GoapActionId.FLEE
+
+	if _current_action == GoapActionId.IDLE and _can_flee():
+		return GoapActionId.FLEE
 
 	if _can_heal_ally():
 		_target_ally = _find_nearest_injured_ally()
@@ -409,7 +407,7 @@ func _is_flee_urgent() -> bool:
 
 
 func _is_player_in_panic_range() -> bool:
-	var player := _get_player()
+	var player := _target
 	if player == null:
 		return false
 	var dist := global_position.distance_to(player.global_position)
@@ -501,10 +499,6 @@ func _enter_flee() -> void:
 
 
 func _execute_flee(delta: float) -> void:
-	var dist_to_target := global_position.distance_to(_flee_target)
-	if dist_to_target < 2.0:
-		_flee_target = _get_flee_target_from_player()
-
 	_chase_toward(_flee_target, walk_speed * flee_speed_mult, delta)
 
 
@@ -513,7 +507,7 @@ func _get_flee_target_from_player() -> Vector3:
 	if cover.distance_squared_to(global_position) > 0.5:
 		return cover
 
-	var player := _get_player()
+	var player := _target
 	if player == null:
 		return global_position + Vector3.RIGHT * 10.0
 
@@ -570,7 +564,7 @@ func _execute_static_cover(delta: float) -> void:
 	_cover_memory_scan_timer -= delta
 	if _cover_memory_scan_timer <= 0.0:
 		_cover_memory_scan_timer = COVER_MEMORY_SCAN_INTERVAL
-		var player := _get_player()
+		var player := _target
 		var space := get_world_3d().direct_space_state
 		if player != null and space != null:
 			_refresh_cover_memory(player, space)
@@ -581,7 +575,7 @@ func _execute_static_cover(delta: float) -> void:
 
 	var exposed := false
 	if _cover_recalc_cooldown <= 0.0:
-		var player := _get_player()
+		var player := _target
 		var space := get_world_3d().direct_space_state
 		if player != null and space != null:
 			exposed = not _is_position_hidden_from_player(global_position, player, space)
@@ -601,7 +595,7 @@ func _execute_static_cover(delta: float) -> void:
 func _find_idle_position() -> Vector3:
 	var nearest_ally := _find_nearest_ally()
 	if nearest_ally != null:
-		var player := _get_player()
+		var player := _target
 		var space := get_world_3d().direct_space_state
 		if space != null:
 			var ally_pos := nearest_ally.global_position
@@ -635,7 +629,7 @@ func _find_nearest_ally() -> Node3D:
 
 
 func _find_cover_near(origin: Vector3) -> Vector3:
-	var player := _get_player()
+	var player := _target
 	var space := get_world_3d().direct_space_state
 	if space == null or player == null:
 		return global_position
@@ -654,7 +648,7 @@ func _find_cover_near(origin: Vector3) -> Vector3:
 
 
 func _find_nearest_cover() -> Vector3:
-	var player := _get_player()
+	var player := _target
 	var space := get_world_3d().direct_space_state
 	if space == null or player == null:
 		return global_position
@@ -746,7 +740,13 @@ func _remember_cover(pos: Vector3) -> void:
 # ===================== _PHYSICS_PROCESS =====================
 
 func _physics_process(delta: float) -> void:
+	_execute_action(_current_action, delta)
 	_apply_gravity(delta)
+
+
+func _on_nav_velocity_computed(safe_velocity: Vector3) -> void:
+	velocity.x = safe_velocity.x
+	velocity.z = safe_velocity.z
 	move_and_slide()
 
 
@@ -776,14 +776,14 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 		dir = to_next.normalized()
 
 	if dir.length_squared() > 0.001:
-		velocity.x = move_toward(velocity.x, dir.x * speed, acceleration * delta)
-		velocity.z = move_toward(velocity.z, dir.z * speed, acceleration * delta)
+		_nav_agent.set_velocity(dir * speed)
 		_visual_node.look_at(global_position + dir, Vector3.UP)
+	else:
+		_nav_agent.set_velocity(Vector3.ZERO)
 
 
 func _stand_still(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
-	velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
+	_nav_agent.set_velocity(Vector3.ZERO)
 
 
 # ===================== ALLY HELPERS =====================

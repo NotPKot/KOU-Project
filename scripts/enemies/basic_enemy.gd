@@ -33,8 +33,7 @@ var _left_fist_material: StandardMaterial3D = null
 var _right_fist_material: StandardMaterial3D = null
 var _body_material: StandardMaterial3D = null
 
-var _player: Node3D = null
-var _player_search_done: bool = false
+var _target: Node3D = null
 
 var _vision_query: PhysicsRayQueryParameters3D = null
 
@@ -67,8 +66,7 @@ func _process_effects(delta: float) -> void:
 
 
 func _update_vision(delta: float) -> void:
-	var player := _get_player()
-	if player == null:
+	if _target == null:
 		return
 
 	var can_see := _can_see_player_cached()
@@ -106,11 +104,10 @@ func _update_fsm(delta: float) -> void:
 
 
 func _check_transitions() -> void:
-	var player := _get_player()
-	if player == null:
+	if _target == null:
 		return
 
-	var dist := global_position.distance_to(player.global_position)
+	var dist := global_position.distance_to(_target.global_position)
 
 	match _state:
 		State.IDLE:
@@ -141,11 +138,10 @@ func _check_transitions() -> void:
 
 
 func _chase(delta: float) -> void:
-	var player := _get_player()
-	if player == null:
+	if _target == null:
 		return
 
-	var dir := (player.global_position - global_position).normalized()
+	var dir := (_target.global_position - global_position).normalized()
 	dir.y = 0.0
 
 	velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
@@ -174,13 +170,11 @@ func _process_attack() -> void:
 	velocity.x = _locked_attack_dir.x * attack_lunge
 	velocity.z = _locked_attack_dir.z * attack_lunge
 
-	if _state_elapsed < 0.1:
-		var player := _get_player()
-		if player != null:
-			var dist := global_position.distance_to(player.global_position)
-			if dist < attack_range + 1.0:
-				if player.has_method("take_damage"):
-					player.take_damage(attack_damage, self)
+	if _state_elapsed < 0.1 and _target != null:
+		var dist := global_position.distance_to(_target.global_position)
+		if dist < attack_range + 1.0:
+			if _target.has_method("take_damage"):
+				_target.take_damage(attack_damage, self)
 
 	_get_left_fist_material().albedo_color = Color(1.0, 1.0, 1.0, 1.0)
 	_get_right_fist_material().albedo_color = Color(1.0, 1.0, 1.0, 1.0)
@@ -191,14 +185,12 @@ func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_elapsed = 0.0
 
-	if new_state == State.CHARGING:
-		var player := _get_player()
-		if player != null:
-			var to_player := player.global_position - global_position
-			to_player.y = 0.0
-			if to_player.length_squared() > 0.0001:
-				_locked_attack_dir = to_player.normalized()
-			_visual.look_at(global_position + _locked_attack_dir, Vector3.UP)
+	if new_state == State.CHARGING and _target != null:
+		var to_player := _target.global_position - global_position
+		to_player.y = 0.0
+		if to_player.length_squared() > 0.0001:
+			_locked_attack_dir = to_player.normalized()
+		_visual.look_at(global_position + _locked_attack_dir, Vector3.UP)
 
 	if new_state == State.DAZED:
 		_get_left_fist_material().albedo_color = Color(0.45, 0.35, 0.35, 1.0)
@@ -227,11 +219,8 @@ func _apply_gravity(delta: float) -> void:
 		velocity.y = -0.1
 
 
-func _get_player() -> Node3D:
-	if _player == null and not _player_search_done:
-		_player_search_done = true
-		_player = get_tree().get_first_node_in_group("player") as Node3D
-	return _player
+func set_target(p: Node3D) -> void:
+	_target = p
 
 
 func _get_vision_query() -> PhysicsRayQueryParameters3D:
@@ -251,11 +240,10 @@ func _can_see_player_cached() -> bool:
 
 
 func _can_see_player() -> bool:
-	var player := _get_player()
-	if player == null:
+	if _target == null:
 		return false
 
-	var to_player := player.global_position - global_position
+	var to_player := _target.global_position - global_position
 	var dist := to_player.length()
 	if dist > vision_range:
 		return false
@@ -273,8 +261,8 @@ func _can_see_player() -> bool:
 
 	var query := _get_vision_query()
 	query.from = global_position + Vector3.UP * 0.5
-	query.to = player.global_position + Vector3.UP * 0.5
-	query.exclude = [get_rid(), player.get_rid()]
+	query.to = _target.global_position + Vector3.UP * 0.5
+	query.exclude = [get_rid(), _target.get_rid()]
 	var result := space.intersect_ray(query)
 	return result.is_empty()
 
