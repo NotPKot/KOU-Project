@@ -88,11 +88,14 @@ func _ready() -> void:
 	add_to_group("enemies")
 
 
-func _physics_process(delta: float) -> void:
-	_apply_gravity(delta)
+func _process(delta: float) -> void:
 	_process_effects(delta)
 	_update_vision(delta)
 	_update_fsm(delta)
+
+
+func _physics_process(delta: float) -> void:
+	_apply_gravity(delta)
 	move_and_slide()
 
 

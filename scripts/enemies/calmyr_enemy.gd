@@ -61,11 +61,14 @@ func _ready() -> void:
 	_original_visual_y = _visual.position.y
 
 
-func _physics_process(delta: float) -> void:
-	_apply_gravity(delta)
+func _process(delta: float) -> void:
 	_process_effects(delta)
 	_update_vision(delta)
 	_update_fsm(delta)
+
+
+func _physics_process(delta: float) -> void:
+	_apply_gravity(delta)
 	move_and_slide()
 
 

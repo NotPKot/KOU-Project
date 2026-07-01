@@ -115,13 +115,16 @@ func _ready() -> void:
 	floor_block_on_wall = false
 
 
-func _physics_process(delta: float) -> void:
-	_apply_gravity(delta)
+func _process(delta: float) -> void:
 	_process_effects(delta)
 	_update_vision(delta)
 	_update_tension(delta)
 	_tick_timers(delta)
 	_evaluate_goap(delta)
+
+
+func _physics_process(delta: float) -> void:
+	_apply_gravity(delta)
 	move_and_slide()
 
 
