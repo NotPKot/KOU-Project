@@ -94,6 +94,7 @@ var _winded_timer: float = 0.0
 @export var safe_distance_fallback: float = 10.0
 
 var _recover_timer: float = 0.0
+var _dbg: int = 0
 
 
 func _ready() -> void:
@@ -121,8 +122,7 @@ func _ready() -> void:
 	_nav_agent.max_speed = walk_speed * flee_speed_mult
 	_nav_agent.neighbor_distance = 5.0
 	_nav_agent.time_horizon = 2.0
-	_nav_agent.avoidance_enabled = true
-	_nav_agent.velocity_computed.connect(_on_nav_velocity_computed)
+	_nav_agent.avoidance_enabled = false
 
 	floor_block_on_wall = false
 
@@ -707,6 +707,7 @@ func _full_cover_scan(player: Node3D, space: PhysicsDirectSpaceState3D) -> Vecto
 
 		var cover_pos := hit_pos + hit_normal * COVER_MIN_DIST
 		cover_pos.y = global_position.y
+		cover_pos = _snap_to_navmesh(cover_pos)
 
 		if not _is_position_hidden_from_player(cover_pos, player, space):
 			continue
@@ -744,10 +745,7 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 
 
-func _on_nav_velocity_computed(safe_velocity: Vector3) -> void:
-	velocity.x = safe_velocity.x
-	velocity.z = safe_velocity.z
-	move_and_slide()
+
 
 
 func _apply_gravity(delta: float) -> void:
@@ -761,29 +759,43 @@ func _apply_gravity(delta: float) -> void:
 
 func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 	_nav_agent.target_position = target
+
+	if _nav_agent.is_navigation_finished():
+		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
+		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
+		move_and_slide()
+		return
+
 	var next_point := _nav_agent.get_next_path_position()
-
-	var to_next := next_point - global_position
-	to_next.y = 0.0
-	var dist_to_next := to_next.length_squared()
-
-	var dir: Vector3
-	if dist_to_next < 0.04:
-		var to_target := target - global_position
-		to_target.y = 0.0
-		dir = to_target.normalized() if to_target.length_squared() > 0.0001 else Vector3.ZERO
-	else:
-		dir = to_next.normalized()
+	var dir := next_point - global_position
+	dir.y = 0.0
 
 	if dir.length_squared() > 0.001:
-		_nav_agent.set_velocity(dir * speed)
+		dir = dir.normalized()
+		velocity.x = dir.x * speed
+		velocity.z = dir.z * speed
 		_visual_node.look_at(global_position + dir, Vector3.UP)
 	else:
-		_nav_agent.set_velocity(Vector3.ZERO)
+		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
+		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
+	move_and_slide()
+
+	_dbg += 1
+	if _dbg % 120 == 0:
+		print("HEALER act=", GoapActionId.keys()[_current_action], " pos=", global_position, " target=", target, " next=", next_point, " on_wall=", is_on_wall(), " v=", velocity.length())
 
 
 func _stand_still(delta: float) -> void:
-	_nav_agent.set_velocity(Vector3.ZERO)
+	velocity.x = move_toward(velocity.x, 0.0, 200.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 200.0 * delta)
+	move_and_slide()
+
+
+func _snap_to_navmesh(pos: Vector3) -> Vector3:
+	var map := _nav_agent.get_navigation_map()
+	if map.is_valid():
+		return NavigationServer3D.map_get_closest_point(map, pos)
+	return pos
 
 
 # ===================== ALLY HELPERS =====================
