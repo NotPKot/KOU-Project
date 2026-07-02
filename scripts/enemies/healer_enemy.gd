@@ -95,7 +95,9 @@ var _winded_timer: float = 0.0
 
 var _recover_timer: float = 0.0
 var _dbg: int = 0
-var _dbg_goap: int = 0
+var _smooth_dir: Vector3 = Vector3.FORWARD
+var _alert_timer: float = 0.0
+const ALERT_THRESHOLD: float = 2.0
 
 
 func _ready() -> void:
@@ -310,7 +312,6 @@ func _evaluate_goap(delta: float) -> void:
 	var selected: GoapActionId = _evaluate_best_action()
 
 	if selected != _current_action:
-		print("GOAP ", GoapActionId.keys()[_current_action], " -> ", GoapActionId.keys()[selected])
 		_exit_action(_current_action)
 		_current_action = selected
 		_action_elapsed = 0.0
@@ -318,16 +319,8 @@ func _evaluate_goap(delta: float) -> void:
 
 
 func _evaluate_best_action() -> GoapActionId:
-	_dbg_goap += 1
-	var periodic := _dbg_goap % 120 == 0
-
-	if periodic:
-		print("GOAP cur=", GoapActionId.keys()[_current_action], " elapsed=", _action_elapsed)
-
 	if _current_action == GoapActionId.FLEE:
 		var exit_reason := _get_flee_exit_reason()
-		if periodic:
-			print("GOAP FLEE: exit=", FleeExit.keys()[exit_reason], " elapsed=", _action_elapsed)
 		match exit_reason:
 			FleeExit.REAL_COVER:
 				return GoapActionId.RECOVER
@@ -349,8 +342,6 @@ func _evaluate_best_action() -> GoapActionId:
 	if _current_action == GoapActionId.WINDED:
 		if _winded_timer > 0.0:
 			return GoapActionId.WINDED
-		if periodic:
-			print("GOAP WINDED: expired, can_heal=", _can_heal_ally(), " player=", _target)
 		if _can_heal_ally():
 			_target_ally = _find_nearest_injured_ally()
 			return GoapActionId.HEAL_ALLY
@@ -358,14 +349,14 @@ func _evaluate_best_action() -> GoapActionId:
 		if player != null:
 			var dist := global_position.distance_to(player.global_position)
 			if dist < safe_distance_fallback:
-				if periodic:
-					print("GOAP WINDED: player too close, flee again")
 				return GoapActionId.FLEE
 
 	if _current_action == GoapActionId.IDLE:
 		if _can_heal_ally():
 			_target_ally = _find_nearest_injured_ally()
 			return GoapActionId.HEAL_ALLY
+		if _alert_timer >= ALERT_THRESHOLD:
+			return GoapActionId.FLEE
 		if _is_player_in_panic_range():
 			return GoapActionId.FLEE
 		if _can_flee():
@@ -525,17 +516,17 @@ func _execute_flee(delta: float) -> void:
 func _get_flee_target_from_player() -> Vector3:
 	var cover := _find_nearest_cover()
 	if cover.distance_squared_to(global_position) > 0.5:
-		return cover
+		return _snap_to_navmesh(cover)
 
 	var player := _target
 	if player == null:
-		return global_position + Vector3.RIGHT * 10.0
+		return _snap_to_navmesh(global_position + Vector3.RIGHT * 10.0)
 
 	var away := global_position - player.global_position
 	away.y = 0.0
 	if away.length_squared() > 0.01:
-		return global_position + away.normalized() * 15.0
-	return global_position + Vector3.RIGHT * 10.0
+		return _snap_to_navmesh(global_position + away.normalized() * 15.0)
+	return _snap_to_navmesh(global_position + Vector3.RIGHT * 10.0)
 
 
 # --- RECOVER ---
@@ -571,9 +562,23 @@ func _execute_winded(delta: float) -> void:
 func _enter_idle() -> void:
 	_cover_target = _find_idle_position()
 	_cover_recalc_cooldown = COVER_RECALC_INTERVAL
+	_alert_timer = 0.0
 
 
 func _execute_idle(delta: float) -> void:
+	var player := _target
+	if player != null and _can_see_player_cached():
+		_alert_timer += delta
+		var look_dir := player.global_position - global_position
+		look_dir.y = 0.0
+		if look_dir.length_squared() > 0.001:
+			_visual_node.look_at(global_position + look_dir.normalized(), Vector3.UP)
+		_stand_still(delta)
+		return
+
+	if _alert_timer > 0.0:
+		_alert_timer = maxf(_alert_timer - delta * 2.0, 0.0)
+
 	_execute_static_cover(delta)
 
 
@@ -591,7 +596,7 @@ func _execute_static_cover(delta: float) -> void:
 
 	var dist_to_cover := global_position.distance_to(_cover_target)
 	var reached_cover := dist_to_cover < 1.0
-	var stale_timer := _action_elapsed > 5.0
+	var stale_timer := _action_elapsed > 8.0
 
 	var exposed := false
 	if _cover_recalc_cooldown <= 0.0 and _is_player_in_panic_range():
@@ -620,12 +625,12 @@ func _find_idle_position() -> Vector3:
 			continue
 		friendly.append(a)
 	if friendly.is_empty():
-		return _find_nearest_cover()
+		return _snap_to_navmesh(_find_nearest_cover())
 
 	var chosen := friendly[randi() % friendly.size()]
-	var radius := 14.0
+	var radius := 6.0
 	var spread := Vector3(randf_range(-radius, radius), 0.0, randf_range(-radius, radius))
-	var idle_pos := chosen.global_position + spread
+	var idle_pos := _snap_to_navmesh(chosen.global_position + spread)
 
 	if _is_player_in_panic_range():
 		var space := get_world_3d().direct_space_state
@@ -633,7 +638,7 @@ func _find_idle_position() -> Vector3:
 		if space != null and player != null:
 			if _is_position_hidden_from_player(idle_pos, player, space):
 				return idle_pos
-			var cover := _find_cover_near(chosen.global_position)
+			var cover := _snap_to_navmesh(_find_cover_near(chosen.global_position))
 			if cover.distance_squared_to(global_position) > 0.5:
 				return cover
 	return idle_pos
@@ -799,9 +804,21 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 
 	if dir.length_squared() > 0.001:
 		dir = dir.normalized()
-		velocity.x = dir.x * speed
-		velocity.z = dir.z * speed
-		_visual_node.look_at(global_position + dir, Vector3.UP)
+		if is_on_wall():
+			var wall_n := get_wall_normal()
+			var along := wall_n.cross(Vector3.UP).normalized()
+			dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
+		var avoid := _avoid_allies(2.0)
+		var blended := dir + avoid * 3.0
+		if blended.length_squared() < 0.001:
+			blended = dir
+		else:
+			blended = blended.normalized()
+		var turn_rate := 4.0
+		_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
+		velocity.x = _smooth_dir.x * speed
+		velocity.z = _smooth_dir.z * speed
+		_visual_node.look_at(global_position + _smooth_dir, Vector3.UP)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
@@ -809,7 +826,25 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 
 	_dbg += 1
 	if _dbg % 120 == 0:
-		print("HEALER act=", GoapActionId.keys()[_current_action], " pos=", global_position, " target=", target, " next=", next_point, " on_wall=", is_on_wall(), " v=", velocity.length())
+		var avoid := _avoid_allies(2.0)
+		print("CHASE act=", GoapActionId.keys()[_current_action], " alert=", _alert_timer, " avoid=", avoid, " next=", next_point, " on_wall=", is_on_wall())
+
+
+func _avoid_allies(min_dist: float) -> Vector3:
+	var result := Vector3.ZERO
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	for e: Node in enemies:
+		if e == self or not is_instance_valid(e):
+			continue
+		var offset: Vector3 = global_position - e.global_position
+		offset.y = 0.0
+		var dist: float = offset.length()
+		if dist < min_dist and dist > 0.01:
+			var strength: float = (min_dist - dist) / min_dist
+			result += offset.normalized() * strength
+	return result
+
+
 
 
 func _stand_still(delta: float) -> void:
