@@ -124,7 +124,9 @@ func _basic_attack() -> void:
 
 
 func _spawn_basic_slash() -> void:
-	if _owner_player == null:
+	if _owner_player == null or not _owner_player.is_inside_tree():
+		return
+	if not is_inside_tree():
 		return
 
 	var variant: Dictionary = _get_next_slash_variant()

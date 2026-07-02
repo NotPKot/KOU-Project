@@ -21,6 +21,9 @@ extends CharacterBody3D
 @export var cover_scan_range: float = 16.0
 @export var cover_scan_rays: int = 12
 
+enum AwarenessLevel { CLUELESS, ALREADY_KNOWS }
+@export var awareness_level: AwarenessLevel = AwarenessLevel.CLUELESS
+
 @export_group("Tension")
 @export var tension_max_distance: float = 16.0
 @export var tension_rise_distance_rate: float = 7.0
@@ -98,11 +101,21 @@ var _dbg: int = 0
 var _smooth_dir: Vector3 = Vector3.FORWARD
 var _alert_timer: float = 0.0
 const ALERT_THRESHOLD: float = 2.0
+var _alert_indicator: Node3D
+var _question_mark: Label3D
+var _eye_meter_bg: MeshInstance3D
+var _eye_meter_fill: MeshInstance3D
+
+
+var _nav_map_ready: bool = false
 
 
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
+
+	NavigationServer3D.map_changed.connect(_on_nav_map_changed)
+	_nav_map_ready = false
 
 	_body_material = StandardMaterial3D.new()
 	_body_base_color = Color(0.15, 0.65, 0.55, 1.0)
@@ -128,6 +141,46 @@ func _ready() -> void:
 	_nav_agent.avoidance_enabled = false
 
 	floor_block_on_wall = false
+
+	_alert_indicator = Node3D.new()
+	_alert_indicator.position = Vector3(0, 2.5, 0)
+	add_child(_alert_indicator)
+
+	_question_mark = Label3D.new()
+	_question_mark.text = "?"
+	_question_mark.font_size = 64
+	_question_mark.outline_size = 4
+	_question_mark.outline_modulate = Color.BLACK
+	_question_mark.modulate = Color(1, 1, 0.2)
+	_question_mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_question_mark.visible = false
+	_alert_indicator.add_child(_question_mark)
+
+	var meter_mat_bg := StandardMaterial3D.new()
+	meter_mat_bg.albedo_color = Color(0.1, 0.1, 0.1, 0.6)
+	meter_mat_bg.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	meter_mat_bg.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var bg_mesh := QuadMesh.new()
+	bg_mesh.size = Vector2(0.6, 1.0)
+	_eye_meter_bg = MeshInstance3D.new()
+	_eye_meter_bg.mesh = bg_mesh
+	_eye_meter_bg.material_override = meter_mat_bg
+	_eye_meter_bg.position = Vector3(0, -0.8, 0)
+	_eye_meter_bg.visible = false
+	_alert_indicator.add_child(_eye_meter_bg)
+
+	var meter_mat_fill := StandardMaterial3D.new()
+	meter_mat_fill.albedo_color = Color(1, 1, 0.2, 0.9)
+	meter_mat_fill.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	meter_mat_fill.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var fill_mesh := QuadMesh.new()
+	fill_mesh.size = Vector2(0.5, 0.0)
+	_eye_meter_fill = MeshInstance3D.new()
+	_eye_meter_fill.mesh = fill_mesh
+	_eye_meter_fill.material_override = meter_mat_fill
+	_eye_meter_fill.position = Vector3(0, -0.3, 0)
+	_eye_meter_fill.visible = false
+	_alert_indicator.add_child(_eye_meter_fill)
 
 
 # ===================== _PROCESS =====================
@@ -355,8 +408,9 @@ func _evaluate_best_action() -> GoapActionId:
 		if _can_heal_ally():
 			_target_ally = _find_nearest_injured_ally()
 			return GoapActionId.HEAL_ALLY
-		if _alert_timer >= ALERT_THRESHOLD:
-			return GoapActionId.FLEE
+		if awareness_level == AwarenessLevel.CLUELESS:
+			if _alert_timer >= ALERT_THRESHOLD:
+				return GoapActionId.FLEE
 		if _is_player_in_panic_range():
 			return GoapActionId.FLEE
 		if _can_flee():
@@ -442,6 +496,9 @@ func _enter_action(action: GoapActionId) -> void:
 
 
 func _exit_action(action: GoapActionId) -> void:
+	_question_mark.visible = false
+	_eye_meter_bg.visible = false
+	_eye_meter_fill.visible = false
 	match action:
 		GoapActionId.HEAL_ALLY:
 			if _grabbing:
@@ -566,18 +623,52 @@ func _enter_idle() -> void:
 
 
 func _execute_idle(delta: float) -> void:
+	if awareness_level == AwarenessLevel.CLUELESS:
+		_execute_idle_clueless(delta)
+	else:
+		_execute_static_cover(delta)
+
+
+func _execute_idle_clueless(delta: float) -> void:
 	var player := _target
 	if player != null and _can_see_player_cached():
-		_alert_timer += delta
+		var dist := global_position.distance_to(player.global_position)
+		var proximity := clampf(1.0 - dist / 20.0, 0.2, 1.0)
+		_alert_timer += delta * proximity
 		var look_dir := player.global_position - global_position
 		look_dir.y = 0.0
-		if look_dir.length_squared() > 0.001:
-			_visual_node.look_at(global_position + look_dir.normalized(), Vector3.UP)
+
+		if _alert_timer < 0.5:
+			_question_mark.visible = true
+			_eye_meter_bg.visible = false
+			_eye_meter_fill.visible = false
+			if look_dir.length_squared() > 0.001:
+				var target_basis := Basis.looking_at(look_dir.normalized(), Vector3.UP)
+				var current_basis := _visual_node.transform.basis
+				_visual_node.transform.basis = current_basis.slerp(target_basis, 1.5 * delta)
+		else:
+			_question_mark.visible = false
+			_eye_meter_bg.visible = true
+			_eye_meter_fill.visible = true
+			if look_dir.length_squared() > 0.001:
+				var target_basis := Basis.looking_at(look_dir.normalized(), Vector3.UP)
+				var current_basis := _visual_node.transform.basis
+				_visual_node.transform.basis = current_basis.slerp(target_basis, 2.0 * delta)
+			var progress := clampf(_alert_timer / ALERT_THRESHOLD, 0.0, 1.0)
+			var fm: QuadMesh = _eye_meter_fill.mesh
+			fm.size.y = 0.9 * progress
+			_eye_meter_fill.position.y = -0.75 + 0.45 * progress
+
 		_stand_still(delta)
 		return
 
 	if _alert_timer > 0.0:
 		_alert_timer = maxf(_alert_timer - delta * 2.0, 0.0)
+
+	if _alert_timer < 0.5:
+		_question_mark.visible = false
+		_eye_meter_bg.visible = false
+		_eye_meter_fill.visible = false
 
 	_execute_static_cover(delta)
 
@@ -824,11 +915,6 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
 	move_and_slide()
 
-	_dbg += 1
-	if _dbg % 120 == 0:
-		var avoid := _avoid_allies(2.0)
-		print("CHASE act=", GoapActionId.keys()[_current_action], " alert=", _alert_timer, " avoid=", avoid, " next=", next_point, " on_wall=", is_on_wall())
-
 
 func _avoid_allies(min_dist: float) -> Vector3:
 	var result := Vector3.ZERO
@@ -854,10 +940,17 @@ func _stand_still(delta: float) -> void:
 
 
 func _snap_to_navmesh(pos: Vector3) -> Vector3:
+	if not _nav_map_ready:
+		return pos
 	var map := _nav_agent.get_navigation_map()
 	if map.is_valid():
 		return NavigationServer3D.map_get_closest_point(map, pos)
 	return pos
+
+
+func _on_nav_map_changed(map_rid: RID) -> void:
+	if map_rid == _nav_agent.get_navigation_map():
+		_nav_map_ready = true
 
 
 # ===================== ALLY HELPERS =====================
@@ -904,6 +997,7 @@ func take_damage(amount: int) -> void:
 	_last_hit_time = Time.get_ticks_msec() * 0.001
 	_modulate_damage()
 	if hp <= 0:
+		MusicManager.unregister_threat(self)
 		queue_free()
 
 

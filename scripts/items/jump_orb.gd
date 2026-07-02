@@ -35,4 +35,4 @@ func _on_body_entered(body: Node3D) -> void:
 	body.enable_jump()
 	_consumed = true
 	_visual.visible = false
-	monitoring = false
+	set_deferred("monitoring", false)

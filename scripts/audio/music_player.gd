@@ -17,6 +17,7 @@ const COMBAT_DIR := "res://placeholder/audio/music/fight/"
 
 
 func _ready() -> void:
+	print("[MusicPlayer] _ready() called")
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.name = "Channel" + str(i)
@@ -25,7 +26,9 @@ func _ready() -> void:
 		_channels.append(p)
 
 	MusicManager.music_state_changed.connect(_on_music_state_changed)
+	print("[MusicPlayer] connected to music_state_changed signal")
 	_load_tracks()
+	print("[MusicPlayer] tracks loaded: calm=", _calm_tracks.size(), " tension=", _tension_tracks.size(), " combat=", _combat_tracks.size())
 	_play_state(MusicManager.EMusicState.CALM)
 
 
@@ -55,6 +58,7 @@ static func _load_ogg_dir(dir_path: String) -> Array[AudioStream]:
 
 
 func _on_music_state_changed(new_state: MusicManager.EMusicState, _old_state: MusicManager.EMusicState) -> void:
+	print("[MusicPlayer] signal received: ", MusicManager.STATE_NAMES[new_state])
 	_play_state(new_state)
 
 

@@ -41,7 +41,7 @@ func _on_body_entered(body: Node3D) -> void:
 
 	_is_open = true
 	_target = body
-	monitoring = false
+	set_deferred("monitoring", false)
 
 	if body.has_method("set_input_locked"):
 		body.set_input_locked(true)

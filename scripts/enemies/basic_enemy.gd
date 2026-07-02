@@ -310,6 +310,7 @@ func take_damage(amount: int) -> void:
 	hp -= amount
 	_modulate_damage()
 	if hp <= 0:
+		MusicManager.unregister_threat(self)
 		queue_free()
 
 
