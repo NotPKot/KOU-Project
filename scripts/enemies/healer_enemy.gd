@@ -95,6 +95,7 @@ var _winded_timer: float = 0.0
 
 var _recover_timer: float = 0.0
 var _dbg: int = 0
+var _dbg_goap: int = 0
 
 
 func _ready() -> void:
@@ -309,6 +310,7 @@ func _evaluate_goap(delta: float) -> void:
 	var selected: GoapActionId = _evaluate_best_action()
 
 	if selected != _current_action:
+		print("GOAP ", GoapActionId.keys()[_current_action], " -> ", GoapActionId.keys()[selected])
 		_exit_action(_current_action)
 		_current_action = selected
 		_action_elapsed = 0.0
@@ -316,8 +318,16 @@ func _evaluate_goap(delta: float) -> void:
 
 
 func _evaluate_best_action() -> GoapActionId:
+	_dbg_goap += 1
+	var periodic := _dbg_goap % 120 == 0
+
+	if periodic:
+		print("GOAP cur=", GoapActionId.keys()[_current_action], " elapsed=", _action_elapsed)
+
 	if _current_action == GoapActionId.FLEE:
 		var exit_reason := _get_flee_exit_reason()
+		if periodic:
+			print("GOAP FLEE: exit=", FleeExit.keys()[exit_reason], " elapsed=", _action_elapsed)
 		match exit_reason:
 			FleeExit.REAL_COVER:
 				return GoapActionId.RECOVER
@@ -339,17 +349,27 @@ func _evaluate_best_action() -> GoapActionId:
 	if _current_action == GoapActionId.WINDED:
 		if _winded_timer > 0.0:
 			return GoapActionId.WINDED
+		if periodic:
+			print("GOAP WINDED: expired, can_heal=", _can_heal_ally(), " player=", _target)
+		if _can_heal_ally():
+			_target_ally = _find_nearest_injured_ally()
+			return GoapActionId.HEAL_ALLY
 		var player := _target
 		if player != null:
 			var dist := global_position.distance_to(player.global_position)
 			if dist < safe_distance_fallback:
+				if periodic:
+					print("GOAP WINDED: player too close, flee again")
 				return GoapActionId.FLEE
 
-	if _current_action == GoapActionId.IDLE and _is_player_in_panic_range():
-		return GoapActionId.FLEE
-
-	if _current_action == GoapActionId.IDLE and _can_flee():
-		return GoapActionId.FLEE
+	if _current_action == GoapActionId.IDLE:
+		if _can_heal_ally():
+			_target_ally = _find_nearest_injured_ally()
+			return GoapActionId.HEAL_ALLY
+		if _is_player_in_panic_range():
+			return GoapActionId.FLEE
+		if _can_flee():
+			return GoapActionId.FLEE
 
 	if _can_heal_ally():
 		_target_ally = _find_nearest_injured_ally()
@@ -381,7 +401,7 @@ func _can_flee() -> bool:
 	if (now - _flee_triggered_at) < flee_duration:
 		return true
 
-	return _tension_is_high()
+	return _tension_is_high() and _is_player_in_panic_range()
 
 
 func _tension_is_high() -> bool:
@@ -574,7 +594,7 @@ func _execute_static_cover(delta: float) -> void:
 	var stale_timer := _action_elapsed > 5.0
 
 	var exposed := false
-	if _cover_recalc_cooldown <= 0.0:
+	if _cover_recalc_cooldown <= 0.0 and _is_player_in_panic_range():
 		var player := _target
 		var space := get_world_3d().direct_space_state
 		if player != null and space != null:
@@ -593,23 +613,30 @@ func _execute_static_cover(delta: float) -> void:
 
 
 func _find_idle_position() -> Vector3:
-	var nearest_ally := _find_nearest_ally()
-	if nearest_ally != null:
-		var player := _target
+	var allies := get_tree().get_nodes_in_group("enemies")
+	var friendly: Array[Node3D] = []
+	for a in allies:
+		if a == self or not is_instance_valid(a):
+			continue
+		friendly.append(a)
+	if friendly.is_empty():
+		return _find_nearest_cover()
+
+	var chosen := friendly[randi() % friendly.size()]
+	var radius := 14.0
+	var spread := Vector3(randf_range(-radius, radius), 0.0, randf_range(-radius, radius))
+	var idle_pos := chosen.global_position + spread
+
+	if _is_player_in_panic_range():
 		var space := get_world_3d().direct_space_state
-		if space != null:
-			var ally_pos := nearest_ally.global_position
-			var dir_from_ally := global_position - ally_pos
-			dir_from_ally.y = 0.0
-			if dir_from_ally.length_squared() < 0.01:
-				dir_from_ally = Vector3.RIGHT
-			var pos_near_ally := ally_pos + dir_from_ally.normalized() * 3.0
-			if player == null or _is_position_hidden_from_player(pos_near_ally, player, space):
-				return pos_near_ally
-			var cover := _find_cover_near(ally_pos)
+		var player := _target
+		if space != null and player != null:
+			if _is_position_hidden_from_player(idle_pos, player, space):
+				return idle_pos
+			var cover := _find_cover_near(chosen.global_position)
 			if cover.distance_squared_to(global_position) > 0.5:
 				return cover
-	return _find_nearest_cover()
+	return idle_pos
 
 
 func _find_nearest_ally() -> Node3D:
