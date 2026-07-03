@@ -33,6 +33,8 @@ enum AwarenessLevel { CLUELESS, ALREADY_KNOWS }
 @export var tension_medium_threshold: float = 30.0
 @export var tension_high_threshold: float = 65.0
 @export var panic_detect_range: float = 4.0
+@export var stealth_range: float = 50.0
+@export var ally_alert_range: float = 30.0
 
 var _healer_tension: float = 0.0
 
@@ -45,6 +47,7 @@ var _target: Node3D = null
 
 var _sight_loss_timer: float = 0.0
 var _tension_registered: bool = false
+var _stealth_registered: bool = false
 var _can_see_cache: bool = false
 var _can_see_frame: int = -1
 var _last_seen_time: float = -999.0
@@ -82,7 +85,7 @@ var _head_base_color: Color
 @onready var _head_mesh: MeshInstance3D = $Visual/Head
 @onready var _nav_agent: NavigationAgent3D = $NavigationAgent3D
 
-enum GoapActionId { HEAL_ALLY, FLEE, RECOVER, WINDED, IDLE }
+enum GoapActionId { HEAL_ALLY, FLEE, RECOVER, WINDED, ALERT_RETREAT, IDLE }
 enum FleeExit { NONE, REAL_COVER, SPRINT_TIMEOUT }
 
 var _current_action: GoapActionId = GoapActionId.IDLE
@@ -100,7 +103,12 @@ var _recover_timer: float = 0.0
 var _dbg: int = 0
 var _smooth_dir: Vector3 = Vector3.FORWARD
 var _alert_timer: float = 0.0
-const ALERT_THRESHOLD: float = 2.0
+const ALERT_TIMER_THRESHOLD: float = 2.0
+
+var _alert_level: float = 0.0
+const ALERT_DECAY_RATE: float = 2.0
+const ALERT_THRESHOLD: float = 30.0
+var _retreat_target: Vector3 = Vector3.ZERO
 var _alert_indicator: Node3D
 var _question_mark: Label3D
 var _eye_meter_bg: MeshInstance3D
@@ -211,21 +219,95 @@ func _process_effects(delta: float) -> void:
 func _update_vision(delta: float) -> void:
 	var player := _target
 	if player == null:
+		_unregister_stealth()
+		_alert_level = maxf(_alert_level - ALERT_DECAY_RATE * delta, 0.0)
+		if _alert_level <= 0.0 and _tension_registered:
+			_tension_registered = false
+			MusicManager.enemigo_calmado(self)
 		return
 
 	var can_see := _can_see_player_cached()
+	var dist := global_position.distance_to(player.global_position)
 
 	if can_see:
+		_alert_level = minf(_alert_level + 30.0 * delta, 100.0)
 		_sight_loss_timer = 0.0
 		_last_seen_time = Time.get_ticks_msec() * 0.001
+		_unregister_stealth()
 		if not _tension_registered:
 			_tension_registered = true
-			MusicManager.register_threat(self)
+			MusicManager.enemigo_agresivo(self)
+			_notify_allies()
 	else:
-		_sight_loss_timer += delta
-		if _tension_registered and _sight_loss_timer >= lose_sight_time:
-			_tension_registered = false
-			MusicManager.unregister_threat(self)
+		_alert_level = maxf(_alert_level - ALERT_DECAY_RATE * delta, 0.0)
+
+		# Stealth: solo si alert_level bajo, dentro de rango y no registrado
+		if dist < stealth_range and _alert_level < ALERT_THRESHOLD and not _tension_registered:
+			_register_stealth()
+		else:
+			_unregister_stealth()
+
+		# Si alert_level sigue alto, mantener tensión aunque no vea
+		if _alert_level >= ALERT_THRESHOLD:
+			_sight_loss_timer = 0.0
+			if not _tension_registered:
+				_tension_registered = true
+				MusicManager.enemigo_agresivo(self)
+				_notify_allies()
+		else:
+			_sight_loss_timer += delta
+			if _tension_registered and _sight_loss_timer >= lose_sight_time:
+				_tension_registered = false
+				MusicManager.enemigo_calmado(self)
+				# Reactivar sigilo si el jugador sigue cerca
+				if dist < stealth_range and _alert_level < ALERT_THRESHOLD:
+					_register_stealth()
+
+
+func _register_stealth() -> void:
+	if not _stealth_registered and not _tension_registered:
+		_stealth_registered = true
+		MusicManager.undetected_enemy_nearby()
+
+
+func _unregister_stealth() -> void:
+	if _stealth_registered:
+		_stealth_registered = false
+		MusicManager.undetected_enemy_left()
+
+
+func _notify_allies() -> void:
+	var allies := get_tree().get_nodes_in_group("enemies")
+	for ally in allies:
+		if ally == self or not is_instance_valid(ally):
+			continue
+		var dist := global_position.distance_to(ally.global_position)
+		if dist <= ally_alert_range and ally.has_method("alerted_by_ally"):
+			ally.alerted_by_ally(self, _target)
+
+
+func alerted_by_ally(source: Node, target: Node3D) -> void:
+	_alert_level = minf(_alert_level + 40.0, 100.0)
+	if target != null:
+		_target = target
+		_last_seen_time = Time.get_ticks_msec() * 0.001
+	_unregister_stealth()
+	if _current_action == GoapActionId.IDLE:
+		_exit_action(GoapActionId.IDLE)
+		_current_action = GoapActionId.ALERT_RETREAT
+		_action_elapsed = 0.0
+		_enter_action(GoapActionId.ALERT_RETREAT)
+
+
+func _find_safe_retreat_position() -> Vector3:
+	var player := _target
+	if player == null:
+		return _snap_to_navmesh(_find_nearest_cover())
+	var away := global_position - player.global_position
+	away.y = 0.0
+	if away.length_squared() > 0.01:
+		return _snap_to_navmesh(global_position + away.normalized() * 20.0)
+	return _snap_to_navmesh(global_position + Vector3.RIGHT * 20.0)
 
 
 func set_target(p: Node3D) -> void:
@@ -404,17 +486,32 @@ func _evaluate_best_action() -> GoapActionId:
 			if dist < safe_distance_fallback:
 				return GoapActionId.FLEE
 
+	if _current_action == GoapActionId.ALERT_RETREAT:
+		if _is_flee_urgent():
+			return GoapActionId.FLEE
+		if _can_heal_ally():
+			_target_ally = _find_nearest_injured_ally()
+			return GoapActionId.HEAL_ALLY
+		if _alert_level <= 0.0:
+			return GoapActionId.IDLE
+		return GoapActionId.ALERT_RETREAT
+
 	if _current_action == GoapActionId.IDLE:
 		if _can_heal_ally():
 			_target_ally = _find_nearest_injured_ally()
 			return GoapActionId.HEAL_ALLY
+		if _alert_level >= ALERT_THRESHOLD:
+			return GoapActionId.ALERT_RETREAT
 		if awareness_level == AwarenessLevel.CLUELESS:
-			if _alert_timer >= ALERT_THRESHOLD:
-				return GoapActionId.FLEE
+			if _alert_timer >= ALERT_TIMER_THRESHOLD:
+				return GoapActionId.ALERT_RETREAT
 		if _is_player_in_panic_range():
 			return GoapActionId.FLEE
 		if _can_flee():
 			return GoapActionId.FLEE
+
+	if _alert_level >= ALERT_THRESHOLD:
+		return GoapActionId.ALERT_RETREAT
 
 	if _can_heal_ally():
 		_target_ally = _find_nearest_injured_ally()
@@ -491,6 +588,8 @@ func _enter_action(action: GoapActionId) -> void:
 			_enter_recover()
 		GoapActionId.WINDED:
 			_enter_winded()
+		GoapActionId.ALERT_RETREAT:
+			_enter_alert_retreat()
 		GoapActionId.IDLE:
 			_enter_idle()
 
@@ -511,6 +610,8 @@ func _exit_action(action: GoapActionId) -> void:
 			pass
 		GoapActionId.WINDED:
 			pass
+		GoapActionId.ALERT_RETREAT:
+			_reset_material_colors()
 		GoapActionId.IDLE:
 			pass
 
@@ -525,6 +626,8 @@ func _execute_action(action: GoapActionId, delta: float) -> void:
 			_execute_recover(delta)
 		GoapActionId.WINDED:
 			_execute_winded(delta)
+		GoapActionId.ALERT_RETREAT:
+			_execute_alert_retreat(delta)
 		GoapActionId.IDLE:
 			_execute_idle(delta)
 
@@ -614,6 +717,27 @@ func _execute_winded(delta: float) -> void:
 	_stand_still(delta)
 
 
+# --- ALERT_RETREAT ---
+
+func _enter_alert_retreat() -> void:
+	_retreat_target = _find_safe_retreat_position()
+	_body_material.albedo_color = Color(0.9, 0.7, 0.2, 1.0)
+	_head_material.albedo_color = Color(1.0, 0.8, 0.3, 1.0)
+	_question_mark.text = "!"
+	_question_mark.modulate = Color(1, 0.3, 0.3)
+	_question_mark.visible = true
+	_eye_meter_bg.visible = false
+	_eye_meter_fill.visible = false
+
+
+func _execute_alert_retreat(delta: float) -> void:
+	var dist_to_target := global_position.distance_to(_retreat_target)
+	if dist_to_target > 1.0:
+		_chase_toward(_retreat_target, walk_speed * 1.1, delta)
+	else:
+		_stand_still(delta)
+
+
 # --- IDLE ---
 
 func _enter_idle() -> void:
@@ -654,7 +778,7 @@ func _execute_idle_clueless(delta: float) -> void:
 				var target_basis := Basis.looking_at(look_dir.normalized(), Vector3.UP)
 				var current_basis := _visual_node.transform.basis
 				_visual_node.transform.basis = current_basis.slerp(target_basis, 2.0 * delta)
-			var progress := clampf(_alert_timer / ALERT_THRESHOLD, 0.0, 1.0)
+			var progress := clampf(_alert_timer / ALERT_TIMER_THRESHOLD, 0.0, 1.0)
 			var fm: QuadMesh = _eye_meter_fill.mesh
 			fm.size.y = 0.9 * progress
 			_eye_meter_fill.position.y = -0.75 + 0.45 * progress
@@ -995,9 +1119,15 @@ func _reset_material_colors() -> void:
 func take_damage(amount: int) -> void:
 	hp -= amount
 	_last_hit_time = Time.get_ticks_msec() * 0.001
+	_alert_level = minf(_alert_level + 50.0, 100.0)
 	_modulate_damage()
+	if not _tension_registered:
+		_tension_registered = true
+		_unregister_stealth()
+		MusicManager.enemigo_agresivo(self)
+		_notify_allies()
 	if hp <= 0:
-		MusicManager.unregister_threat(self)
+		MusicManager.enemigo_calmado(self)
 		queue_free()
 
 
