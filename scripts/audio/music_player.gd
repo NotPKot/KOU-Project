@@ -16,6 +16,8 @@ const TENSION_DIR := "res://placeholder/audio/music/tension/"
 const COMBAT_DIR := "res://placeholder/audio/music/fight/"
 
 
+@export var fade_in_duration: float = 3.0
+
 func _ready() -> void:
 	print("[MusicPlayer] _ready() called")
 	for i in 2:
@@ -29,7 +31,24 @@ func _ready() -> void:
 	print("[MusicPlayer] connected to music_state_changed signal")
 	_load_tracks()
 	print("[MusicPlayer] tracks loaded: calm=", _calm_tracks.size(), " tension=", _tension_tracks.size(), " combat=", _combat_tracks.size())
-	_play_state(MusicManager.EMusicState.CALM)
+	_start_calm_fade_in()
+
+
+func _start_calm_fade_in() -> void:
+	var pool := _calm_tracks
+	if pool.is_empty():
+		return
+
+	var stream := pool[randi() % pool.size()]
+	var player := _channels[0]
+	player.stream = stream
+	player.volume_db = -80.0
+	player.play()
+
+	_tween = create_tween()
+	_tween.tween_property(player, "volume_db", 0.0, fade_in_duration)
+	_current_stream = stream
+	_active_channel = 0
 
 
 func _load_tracks() -> void:

@@ -6,7 +6,7 @@ extends CanvasLayer
 
 
 func _ready() -> void:
-	process_mode = PROCESS_MODE_WHEN_PAUSED
+	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
 	_resume_btn.pressed.connect(_on_resume_pressed)
 

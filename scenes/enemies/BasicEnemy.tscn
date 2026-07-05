@@ -19,7 +19,7 @@ radial_segments = 8
 rings = 4
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_collision"]
-radius = 0.4
+radius = 0.25
 height = 1.6
 
 [node name="BasicEnemy" type="CharacterBody3D"]
@@ -45,3 +45,5 @@ mesh = SubResource("SphereMesh_fist")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0.8, 0)
 shape = SubResource("CapsuleShape3D_collision")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]

@@ -1,69 +1,86 @@
 extends CharacterBody3D
 
-enum State { IDLE, CHASING, SUBMERGING, TRACKING, EMERGING, COOLDOWN, STUNNED }
+enum State { CHASE, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 
-@export var walk_speed: float = 2.5
-@export var acceleration: float = 8.0
-@export var chase_duration: float = 3.0
-@export var submerge_time: float = 0.8
-@export var track_duration: float = 3.0
-@export var emerge_time: float = 0.6
-@export var emerge_damage: int = 10
-@export var attack_cooldown: float = 3.0
-@export var gravity: float = 18.0
-@export var terminal_velocity: float = 42.0
-@export var max_hp: int = 40
+@export_group("Movement")
+@export var walk_speed: float = 3.5
+@export var acceleration: float = 10.0
+@export var travel_speed: float = 8.0
+
+@export_group("Timing")
+@export var submerge_duration: float = 0.5
+@export var attack_duration: float = 0.3
+@export var recovery_duration: float = 2.0
+
+@export_group("Combat")
+@export var attack_damage: int = 15
+@export var indicator_radius: float = 2.5
+
+@export_group("Detection")
+@export var aggro_range: float = 16.0
 @export var vision_range: float = 40.0
 @export var vision_angle: float = 120.0
 @export var lose_sight_time: float = 3.0
-@export var indicator_radius: float = 2.5
+
+@export_group("Physics")
+@export var gravity: float = 18.0
+@export var terminal_velocity: float = 42.0
+
+@export var max_hp: int = 40
 
 var hp: int
-var _state: State = State.IDLE
+var _state: State = State.CHASE
 var _state_elapsed: float = 0.0
-var _target: Node3D = null
-var _body_material: StandardMaterial3D
-var _body_base_color: Color = Color(0.6, 0.15, 0.25, 1.0)
-var _tension_registered: bool = false
-var _sight_loss_timer: float = 0.0
 var _can_see_cache: bool = false
 var _can_see_frame: int = -1
-var _track_target: Vector3 = Vector3.ZERO
-var _indicator_mesh: MeshInstance3D = null
-var _indicator_material: StandardMaterial3D = null
-var _original_visual_y: float = 0.0
-var _stun_timer: float = 0.0
 var _effects: Dictionary = {}
-var _chase_target: Vector3 = Vector3.ZERO
+var _smooth_dir: Vector3 = Vector3.FORWARD
+var _nav_map_ready: bool = false
+
+var _origin: Vector3 = Vector3.ZERO
+var _destination: Vector3 = Vector3.ZERO
+var _travel_progress: float = 0.0
+var _triggered_by_player: bool = false
+var _hit_dealt: bool = false
+
+var _target: Node3D = null
+
+var _vision_query: PhysicsRayQueryParameters3D = null
 
 @onready var _visual: Node3D = $Visual
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _indicator: MeshInstance3D = $Indicator
+@onready var _direction_line: MeshInstance3D = $DirectionLine
+@onready var _collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var _nav_agent: NavigationAgent3D = $NavigationAgent3D
 
 
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
 
-	_body_material = StandardMaterial3D.new()
-	_body_material.albedo_color = _body_base_color
-	_body_material.roughness = 0.8
-	_body_mesh.material_override = _body_material
+	NavigationServer3D.map_changed.connect(_on_nav_map_changed)
+	_nav_map_ready = false
 
-	_indicator_material = StandardMaterial3D.new()
-	_indicator_material.albedo_color = Color(1.0, 0.2, 0.1, 0.35)
-	_indicator_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_indicator_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_indicator.material_override = _indicator_material
+	_nav_agent.path_desired_distance = 0.5
+	_nav_agent.target_desired_distance = 0.5
+	_nav_agent.radius = 0.3
+	_nav_agent.height = 1.8
+	_nav_agent.max_speed = walk_speed
+	_nav_agent.neighbor_distance = 5.0
+	_nav_agent.time_horizon = 2.0
+	_nav_agent.avoidance_enabled = false
+
+	floor_block_on_wall = false
+
 	_indicator.visible = false
-
-	_original_visual_y = _visual.position.y
+	_direction_line.visible = false
 
 
 func _process(delta: float) -> void:
 	_process_effects(delta)
-	_update_vision(delta)
 	_update_fsm(delta)
+	_state_elapsed += delta
 
 
 func _process_effects(delta: float) -> void:
@@ -77,159 +94,187 @@ func _process_effects(delta: float) -> void:
 		_effects.erase(name)
 
 
-func _update_vision(delta: float) -> void:
-	if _target == null:
-		return
-	var can_see := _can_see_player_cached()
-	if can_see:
-		_sight_loss_timer = 0.0
-		if not _tension_registered:
-			_tension_registered = true
-			MusicManager.register_threat(self)
-	else:
-		_sight_loss_timer += delta
-		if _tension_registered and _sight_loss_timer >= lose_sight_time:
-			_tension_registered = false
-			MusicManager.unregister_threat(self)
-
-
 func _update_fsm(delta: float) -> void:
-	_state_elapsed += delta
-	_check_transitions()
-
-	match _state:
-		State.CHASING:
-			_chase(delta)
-		State.SUBMERGING:
-			_process_submerge(delta)
-		State.TRACKING:
-			_process_tracking(delta)
-		State.EMERGING:
-			_process_emerge(delta)
-		State.COOLDOWN:
-			_stand_still(delta)
-		State.STUNNED:
-			_stand_still(0.0)
-		_:			
-			_stand_still(delta)
-
-
-func _check_transitions() -> void:
 	if _target == null:
 		return
 
+	var dist_sq := global_position.distance_squared_to(_target.global_position)
+
 	match _state:
-		State.IDLE:
-			if _can_see_player_cached():
-				_change_state(State.CHASING)
+		State.CHASE:
+			if _can_see_player_cached() and dist_sq <= aggro_range * aggro_range:
+				_change_state(State.SUBMERGE)
 
-		State.CHASING:
-			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
-				_change_state(State.IDLE)
-			elif _state_elapsed >= chase_duration:
-				_change_state(State.SUBMERGING)
+		State.SUBMERGE:
+			if _state_elapsed >= submerge_duration:
+				_change_state(State.TRAVEL)
 
-		State.SUBMERGING:
-			if _state_elapsed >= submerge_time and _target != null:
-				_track_target = _target.global_position
-				_indicator.global_position = Vector3(_track_target.x, 0.0, _track_target.z)
-				_indicator.visible = true
-				_change_state(State.TRACKING)
+		State.TRAVEL:
+			var travel_dist := _origin.distance_to(_destination)
+			var speed := travel_speed * delta / maxf(travel_dist, 0.001)
+			_travel_progress = minf(_travel_progress + speed, 1.0)
+			var pos := _origin.lerp(_destination, _travel_progress)
+			global_position = pos
+			_update_indicator(pos)
 
-		State.TRACKING:
-			if _target != null:
-				_track_target = _target.global_position
-			_indicator.global_position = _track_target
+			if _state_elapsed >= 0.1:
+				var player_pos := _target.global_position
+				player_pos.y = 0.0
+				var circle_pos := pos
+				circle_pos.y = 0.0
+				if circle_pos.distance_squared_to(player_pos) <= indicator_radius * indicator_radius:
+					_triggered_by_player = true
+					_change_state(State.ATTACK)
 
-			if not _can_see_player_cached() and _sight_loss_timer >= lose_sight_time:
-				_indicator.visible = false
-				_change_state(State.IDLE)
-			elif _state_elapsed >= track_duration:
-				_indicator.visible = false
-				_change_state(State.EMERGING)
+			if _travel_progress >= 1.0:
+				_triggered_by_player = false
+				_change_state(State.ATTACK)
 
-		State.EMERGING:
-			if _state_elapsed >= emerge_time:
-				_deal_emerge_damage()
-				_change_state(State.COOLDOWN)
+		State.ATTACK:
+			if _state_elapsed >= attack_duration:
+				_deal_dome_damage()
+				_change_state(State.RECOVERY)
 
-		State.COOLDOWN:
-			if _state_elapsed >= attack_cooldown:
-				_change_state(State.IDLE)
-
-		State.STUNNED:
-			if not has_effect("stun"):
-				_change_state(State.IDLE)
-
-
-func _chase(delta: float) -> void:
-	if _target == null:
-		return
-
-	_chase_target = _chase_target.lerp(_target.global_position, delta * 0.5)
-	var dir := (_chase_target - global_position).normalized()
-	dir.y = 0.0
-
-	velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
-	velocity.z = move_toward(velocity.z, dir.z * walk_speed, acceleration * delta)
-
-	if dir.length_squared() > 0.001:
-		_visual.look_at(global_position + dir, Vector3.UP)
-
-
-func _process_submerge(delta: float) -> void:
-	var t: float = _state_elapsed / submerge_time
-	_visual.position.y = lerpf(_original_visual_y, -1.5, t)
-	_body_material.albedo_color.a = 1.0 - t
-	_body_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-
-func _process_tracking(delta: float) -> void:
-	global_position = global_position.lerp(_track_target, delta * 4.0)
-	_indicator.global_position = Vector3(_track_target.x, 0.0, _track_target.z)
-	var emerge_alert: float = track_duration - 1.0
-	if _state_elapsed >= emerge_alert:
-		var alpha: float = 0.25 + sin(_state_elapsed * 20.0) * 0.3
-		_indicator_material.albedo_color.a = clampf(alpha, 0.0, 0.6)
-
-
-func _process_emerge(delta: float) -> void:
-	var t: float = _state_elapsed / emerge_time
-	_visual.position.y = lerpf(-1.5, _original_visual_y, t)
-	_body_material.albedo_color.a = t
-
-
-func _stand_still(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
-	velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
+		State.RECOVERY:
+			if _state_elapsed >= recovery_duration:
+				_change_state(State.CHASE)
 
 
 func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_elapsed = 0.0
+	_hit_dealt = false
 
-	match _state:
-		State.SUBMERGING:
-			velocity = Vector3.ZERO
-		State.EMERGING:
-			global_position = _track_target
-			_visual.position.y = -1.5
-		State.COOLDOWN:
-			_visual.position.y = _original_visual_y
+	match new_state:
+		State.SUBMERGE:
+			if _target != null:
+				_destination = _target.global_position
+				_origin = global_position
+				_destination.y = _origin.y
+
+		State.TRAVEL:
+			_visual.visible = false
+			_body_mesh.visible = false
+			_set_collision_enabled(false)
+			_travel_progress = 0.0
+			_triggered_by_player = false
+			global_position = _origin
+			_indicator.visible = true
+			_direction_line.visible = true
+
+		State.ATTACK:
+			_visual.visible = true
+			_body_mesh.visible = true
+			_set_collision_enabled(true)
+
+		State.RECOVERY:
+			_indicator.visible = false
+			_direction_line.visible = false
+			_set_collision_enabled(true)
+
+		State.CHASE:
+			_visual.visible = true
+			_body_mesh.visible = true
+			_set_collision_enabled(true)
+			_indicator.visible = false
+			_direction_line.visible = false
 
 
-func _deal_emerge_damage() -> void:
+func _update_indicator(current: Vector3) -> void:
+	var ground_pos := Vector3(current.x, 0.0, current.z)
+	_indicator.global_position = ground_pos
+
+	var line_to := _destination
+	line_to.y = 0.0
+	var line_from := ground_pos
+	var line_dir := line_to - line_from
+	var line_dist := line_dir.length()
+	if line_dist > 0.01:
+		var mid := line_from + line_dir * 0.5
+		_direction_line.global_position = Vector3(mid.x, 0.02, mid.z)
+		_direction_line.scale = Vector3(1.0, 1.0, line_dist)
+		_direction_line.look_at(Vector3(line_to.x, 0.02, line_to.z), Vector3.UP)
+	_direction_line.visible = line_dist > 0.1
+
+
+func _deal_dome_damage() -> void:
 	if _target == null:
 		return
-	var dist := global_position.distance_to(_target.global_position)
-	if dist <= indicator_radius:
+	var dist_sq := global_position.distance_squared_to(_target.global_position)
+	if dist_sq <= indicator_radius * indicator_radius:
 		if _target.has_method("take_damage"):
-			_target.take_damage(emerge_damage)
+			_target.take_damage(attack_damage)
+			_hit_dealt = true
+
+
+func _set_collision_enabled(enabled: bool) -> void:
+	if enabled:
+		collision_layer = 2
+		collision_mask = 3
+	else:
+		collision_layer = 0
+		collision_mask = 0
 
 
 func _physics_process(delta: float) -> void:
+	match _state:
+		State.CHASE:
+			_chase(delta)
+		State.RECOVERY:
+			_set_stop_velocity(delta)
+		_:
+			_set_stop_velocity(delta)
 	_apply_gravity(delta)
 	move_and_slide()
+
+
+func _chase(delta: float) -> void:
+	if _target == null:
+		_set_stop_velocity(delta)
+		return
+
+	_nav_agent.target_position = _target.global_position
+
+	if _nav_agent.is_navigation_finished():
+		var dir := (_target.global_position - global_position)
+		dir.y = 0.0
+		if dir.length_squared() > 0.001:
+			dir = dir.normalized()
+			velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
+			velocity.z = move_toward(velocity.z, dir.z * walk_speed, acceleration * delta)
+			_visual.look_at(global_position + dir, Vector3.UP)
+		else:
+			_set_stop_velocity(delta)
+		return
+
+	var next_point := _nav_agent.get_next_path_position()
+	var dir := next_point - global_position
+	dir.y = 0.0
+
+	if dir.length_squared() > 0.001:
+		dir = dir.normalized()
+		if is_on_wall():
+			var wall_n := get_wall_normal()
+			var along := wall_n.cross(Vector3.UP).normalized()
+			dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
+		var avoid := _avoid_allies(2.0)
+		var blended := dir + avoid * 3.0
+		if blended.length_squared() > 0.001:
+			blended = blended.normalized()
+		else:
+			blended = dir
+		var turn_rate := 4.0
+		_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
+		velocity.x = _smooth_dir.x * walk_speed
+		velocity.z = _smooth_dir.z * walk_speed
+		_visual.look_at(global_position + _smooth_dir, Vector3.UP)
+	else:
+		_set_stop_velocity(delta)
+
+
+func _set_stop_velocity(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 200.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 200.0 * delta)
 
 
 func _apply_gravity(delta: float) -> void:
@@ -237,6 +282,21 @@ func _apply_gravity(delta: float) -> void:
 		velocity.y = max(velocity.y - gravity * delta, -terminal_velocity)
 	elif velocity.y < 0.0:
 		velocity.y = -0.1
+
+
+func _avoid_allies(min_dist: float) -> Vector3:
+	var result := Vector3.ZERO
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	for e: Node in enemies:
+		if e == self or not is_instance_valid(e):
+			continue
+		var offset: Vector3 = global_position - e.global_position
+		offset.y = 0.0
+		var dist: float = offset.length()
+		if dist < min_dist and dist > 0.01:
+			var strength: float = (min_dist - dist) / min_dist
+			result += offset.normalized() * strength
+	return result
 
 
 func set_target(p: Node3D) -> void:
@@ -272,13 +332,24 @@ func _can_see_player() -> bool:
 	if space == null:
 		return true
 
-	var query := PhysicsRayQueryParameters3D.new()
-	query.from = global_position + Vector3.UP * 0.5
-	query.to = _target.global_position + Vector3.UP * 0.5
-	query.collision_mask = 1
-	query.exclude = [get_rid(), _target.get_rid()]
-	var result := space.intersect_ray(query)
+	var vision_query := _get_vision_query()
+	vision_query.from = global_position + Vector3.UP * 0.5
+	vision_query.to = _target.global_position + Vector3.UP * 0.5
+	vision_query.exclude = [get_rid(), _target.get_rid()]
+	var result := space.intersect_ray(vision_query)
 	return result.is_empty()
+
+
+func _get_vision_query() -> PhysicsRayQueryParameters3D:
+	if _vision_query == null:
+		_vision_query = PhysicsRayQueryParameters3D.new()
+		_vision_query.collision_mask = 1
+	return _vision_query
+
+
+func _on_nav_map_changed(map_rid: RID) -> void:
+	if map_rid == _nav_agent.get_navigation_map():
+		_nav_map_ready = true
 
 
 func apply_effect(effect: StatusEffect) -> void:
@@ -287,8 +358,6 @@ func apply_effect(effect: StatusEffect) -> void:
 		return
 	effect.apply(self)
 	_effects[effect.effect_name] = effect
-	if effect.effect_name == "stun":
-		_change_state(State.STUNNED)
 
 
 func has_effect(name: String) -> bool:
@@ -297,15 +366,5 @@ func has_effect(name: String) -> bool:
 
 func take_damage(amount: int) -> void:
 	hp -= amount
-	_modulate_damage()
 	if hp <= 0:
-		MusicManager.unregister_threat(self)
 		queue_free()
-
-
-func _modulate_damage() -> void:
-	_body_material.albedo_color = Color.WHITE
-	await get_tree().create_timer(0.08).timeout
-	if is_queued_for_deletion():
-		return
-	_body_material.albedo_color = _body_base_color

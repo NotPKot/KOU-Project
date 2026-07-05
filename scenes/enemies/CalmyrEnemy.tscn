@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/calmyr_enemy.gd" id="1_calmyr"]
 
@@ -19,6 +19,19 @@ radius = 0.45
 [sub_resource type="SphereMesh" id="SphereMesh_eye"]
 radius = 0.12
 height = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_line"]
+size = Vector3(0.04, 0.04, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_indicator"]
+albedo_color = Color(1, 0.2, 0.1, 0.35)
+transparency = 1
+shading_mode = 0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_line"]
+albedo_color = Color(1, 0.2, 0.1, 0.5)
+transparency = 1
+shading_mode = 0
 
 [node name="CalmyrEnemy" type="CharacterBody3D"]
 collision_layer = 2
@@ -46,4 +59,12 @@ shape = SubResource("CylinderShape3D_collision")
 [node name="Indicator" type="MeshInstance3D" parent="."]
 position = Vector3(0, 0.03, 0)
 mesh = SubResource("CylinderMesh_indicator")
+material_override = SubResource("StandardMaterial3D_indicator")
 visible = false
+
+[node name="DirectionLine" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_line")
+material_override = SubResource("StandardMaterial3D_line")
+visible = false
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]

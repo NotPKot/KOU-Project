@@ -1,0 +1,41 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/triggers/combat_button.gd" id="1_combat_button"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_base"]
+size = Vector3(1.8, 0.15, 1.2)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_top"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.2
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_trigger"]
+size = Vector3(2.4, 0.5, 1.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_base"]
+albedo_color = Color(0.3, 0.3, 0.35, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_top"]
+albedo_color = Color(0.5, 0.15, 0.1, 1)
+roughness = 0.4
+metallic = 0.6
+
+[node name="CombatButton" type="Area3D"]
+script = ExtResource("1_combat_button")
+
+[node name="TriggerShape" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_trigger")
+
+[node name="Base" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.075, 0)
+mesh = SubResource("BoxMesh_base")
+material_override = SubResource("StandardMaterial3D_base")
+
+[node name="Top" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.25, 0)
+mesh = SubResource("CylinderMesh_top")
+material_override = SubResource("StandardMaterial3D_top")

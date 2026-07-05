@@ -2,19 +2,18 @@
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/PracticeGround.tscn" id="2_practice_ground"]
-[ext_resource type="PackedScene" path="res://scenes/enemies/HealerEnemy.tscn" id="3_2tpxt"]
-[ext_resource type="PackedScene" path="res://scenes/enemies/BasicEnemy.tscn" id="3_q24mn"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/MobilityOrb.tscn" id="4_gyg6b"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/JumpOrb.tscn" id="5_jump_orb"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/MouseWeaponOrb.tscn" id="6_weapon_orb"]
 [ext_resource type="Script" uid="uid://cdw6nkta1uygo" path="res://scripts/main/main.gd" id="7_main_script"]
-[ext_resource type="PackedScene" path="res://scenes/enemies/CalmyrEnemy.tscn" id="8_calmyr"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HealthBar.tscn" id="9_health_bar"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="10_pause_menu"]
 [ext_resource type="PackedScene" path="res://scenes/orbs/HealOrb.tscn" id="11_qkm1d"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CooldownHud.tscn" id="12_cooldown_hud"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/practice/CoverWalls.tscn" id="13_cover_walls"]
 [ext_resource type="Script" uid="uid://dm6p440qlsn5o" path="res://scripts/enemies/enemies_manager.gd" id="14_enemies_manager"]
+[ext_resource type="PackedScene" path="res://scenes/triggers/CombatButton.tscn" id="14_jsdfw"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/hook_blocks/HookBlock.tscn" id="15_hook_block"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -97,26 +96,6 @@ grow_vertical = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.30845, 0, 14.01933)
 script = ExtResource("14_enemies_manager")
 
-[node name="HealerEnemy" parent="Enemies" unique_id=1696808273 instance=ExtResource("3_2tpxt")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.9307175, 0, 5.373868)
-
-[node name="Visual" parent="Enemies/HealerEnemy" index="0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-
-[node name="Head" parent="Enemies/HealerEnemy/Visual" index="1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-
-[node name="CollisionShape3D" parent="Enemies/HealerEnemy" index="1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-
-[node name="NavigationAgent3D" parent="Enemies/HealerEnemy" index="2"]
-avoidance_enabled = true
-
-[node name="BasicEnemy" parent="Enemies" unique_id=248351038 instance=ExtResource("3_q24mn")]
-
-[node name="CalmyrEnemy" parent="Enemies" unique_id=1165541328 instance=ExtResource("8_calmyr")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
-
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=643454832]
 navigation_mesh = SubResource("NavigationMesh_jsdfw")
 
@@ -144,6 +123,44 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40.295654, 1.25, 29.07347)
 [node name="CoverWall7" parent="NavigationRegion3D/Walls" unique_id=197928458 instance=ExtResource("13_cover_walls")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.26605, 1.25, 22.235405)
 
+[node name="CoverWall8" parent="NavigationRegion3D/Walls" unique_id=194568681 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 1.25, 12)
+
+[node name="CoverWall9" parent="NavigationRegion3D/Walls" unique_id=865949605 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 48, 1.25, 35)
+
+[node name="CoverWall10" parent="NavigationRegion3D/Walls" unique_id=1428789157 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(0.707, 0, 0.707, 0, 1, 0, -0.707, 0, 0.707, 25, 1.25, 10)
+
+[node name="CoverWall11" parent="NavigationRegion3D/Walls" unique_id=539326472 instance=ExtResource("13_cover_walls")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 1.25, 25)
+
+[node name="HookBlocks" type="Node3D" parent="NavigationRegion3D" unique_id=982105882]
+
+[node name="HookBlock1" parent="NavigationRegion3D/HookBlocks" unique_id=1729479778 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 3, 5)
+
+[node name="HookBlock2" parent="NavigationRegion3D/HookBlocks" unique_id=29036195 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 3.5, 20)
+
+[node name="HookBlock3" parent="NavigationRegion3D/HookBlocks" unique_id=1662928046 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 4, 30)
+
+[node name="HookBlock4" parent="NavigationRegion3D/HookBlocks" unique_id=945396064 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 2.5, 15)
+
+[node name="HookBlock5" parent="NavigationRegion3D/HookBlocks" unique_id=1736225584 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 4, 20)
+
+[node name="HookBlock6" parent="NavigationRegion3D/HookBlocks" unique_id=7365742 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 3, 8)
+
+[node name="HookBlock7" parent="NavigationRegion3D/HookBlocks" unique_id=896513639 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 3, 30)
+
+[node name="HookBlock8" parent="NavigationRegion3D/HookBlocks" unique_id=1228797915 instance=ExtResource("15_hook_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 5, 25)
+
 [node name="PracticeGround" parent="NavigationRegion3D" unique_id=430140652 instance=ExtResource("2_practice_ground")]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
 
@@ -153,6 +170,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
 [node name="OriginMarker" parent="NavigationRegion3D/PracticeGround" index="1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 
+[node name="CombatButton" parent="." unique_id=2010857239 instance=ExtResource("14_jsdfw")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.505978, 0, 10.17739)
+
+[node name="Base" parent="CombatButton" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+
+[node name="Top" parent="CombatButton" index="2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+
 [editable path="Player"]
-[editable path="Enemies/HealerEnemy"]
 [editable path="NavigationRegion3D/PracticeGround"]
+[editable path="CombatButton"]
