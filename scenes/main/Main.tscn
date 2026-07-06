@@ -14,6 +14,7 @@
 [ext_resource type="Script" uid="uid://dm6p440qlsn5o" path="res://scripts/enemies/enemies_manager.gd" id="14_enemies_manager"]
 [ext_resource type="PackedScene" path="res://scenes/triggers/CombatButton.tscn" id="14_jsdfw"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/hook_blocks/HookBlock.tscn" id="15_hook_block"]
+[ext_resource type="PackedScene" path="res://scenes/ui/Crosshair.tscn" id="16_crosshair"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -25,6 +26,27 @@ ambient_light_energy = 0.75
 [sub_resource type="NavigationMesh" id="NavigationMesh_jsdfw"]
 vertices = PackedVector3Array(27, 0.35, 17.5, 31.75, 0.35, 17.25, 32.25, 0.35, 15.25, 32.5, 0.35, 10.5, 34.25, 0.35, 25.75, 34, 0.35, 24.5, 31.75, 0.35, 19, 27.25, 0.35, 19, -59.5, 0.35, 59.5, 35.5, 0.35, 59.5, 37.75, 0.35, 1.5, 42.25, 0.35, 1.5, 59.5, 0.35, 1.25, 59.5, 0.35, -59.5, 33.75, 0.35, 10.25, 37.5, 0.35, 2.75, 35.75, 0.35, 25.75, -59.5, 0.35, -59.5, 49.25, 0.35, 12, 49.75, 0.35, 15.5, 59.5, 0.35, 15.25, 42.75, 0.35, 1.75, 42.75, 0.35, 2.75, 48, 0.35, 11.75, 44, 0.35, 15.75, 44.25, 0.35, 16.25, 48, 0.35, 15.75, 47.5, 0.35, 12, 38.75, 0.35, 15.75, 42.5, 0.35, 3.25, 37.75, 0.35, 3.25, 34.25, 0.35, 10.5, 34, 0.35, 15, 32.25, 0.35, 17.5, 33.75, 0.35, 15.5, 34.25, 0.35, 24, 32.25, 0.35, 18.75, 38.75, 0.35, 24, 39, 0.35, 21, 38.5, 0.35, 20.75, 39.25, 0.35, 24.25, 40.25, 0.35, 20.75, 49.5, 0.35, 17, 39.25, 0.35, 25.5, 37.75, 0.35, 59.5, 59.5, 0.35, 59.5, 48.25, 0.35, 17, 44, 0.35, 17.5, 40.25, 0.35, 17.5, 37.5, 0.35, 25.75)
 polygons = [PackedInt32Array(1, 0, 2), PackedInt32Array(2, 0, 3), PackedInt32Array(5, 4, 6), PackedInt32Array(6, 4, 7), PackedInt32Array(7, 4, 9), PackedInt32Array(7, 9, 8), PackedInt32Array(11, 10, 12), PackedInt32Array(12, 10, 13), PackedInt32Array(14, 3, 15), PackedInt32Array(15, 3, 10), PackedInt32Array(4, 16, 9), PackedInt32Array(0, 7, 8), PackedInt32Array(3, 0, 10), PackedInt32Array(10, 0, 13), PackedInt32Array(13, 0, 17), PackedInt32Array(17, 0, 8), PackedInt32Array(20, 19, 18), PackedInt32Array(22, 21, 23), PackedInt32Array(23, 21, 18), PackedInt32Array(12, 21, 11), PackedInt32Array(20, 18, 12), PackedInt32Array(12, 18, 21), PackedInt32Array(25, 24, 26), PackedInt32Array(26, 24, 27), PackedInt32Array(27, 28, 23), PackedInt32Array(23, 28, 31), PackedInt32Array(23, 31, 29), PackedInt32Array(29, 31, 30), PackedInt32Array(32, 31, 28), PackedInt32Array(31, 14, 30), PackedInt32Array(30, 14, 15), PackedInt32Array(29, 22, 23), PackedInt32Array(27, 24, 28), PackedInt32Array(1, 2, 33), PackedInt32Array(33, 2, 34), PackedInt32Array(36, 35, 6), PackedInt32Array(6, 35, 5), PackedInt32Array(38, 37, 39), PackedInt32Array(39, 37, 35), PackedInt32Array(36, 33, 34), PackedInt32Array(34, 32, 36), PackedInt32Array(36, 32, 28), PackedInt32Array(36, 28, 39), PackedInt32Array(36, 39, 35), PackedInt32Array(37, 38, 40), PackedInt32Array(40, 38, 41), PackedInt32Array(42, 20, 43), PackedInt32Array(43, 20, 44), PackedInt32Array(44, 20, 45), PackedInt32Array(26, 46, 25), PackedInt32Array(25, 46, 47), PackedInt32Array(42, 19, 20), PackedInt32Array(40, 41, 43), PackedInt32Array(43, 41, 47), PackedInt32Array(43, 47, 46), PackedInt32Array(43, 46, 42), PackedInt32Array(41, 48, 47), PackedInt32Array(44, 49, 43), PackedInt32Array(16, 49, 9), PackedInt32Array(9, 49, 44)]
+
+[sub_resource type="StandardMaterial3D" id="Material_ramp"]
+albedo_color = Color(0.4, 0.42, 0.45, 1)
+metallic = 0.2
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_ramp"]
+size = Vector3(4, 0.25, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
+size = Vector3(4, 0.25, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_stair_ramp"]
+size = Vector3(4, 0.15, 4.8)
+
+[sub_resource type="StandardMaterial3D" id="Material_step"]
+albedo_color = Color(0.45, 0.38, 0.3, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_step"]
+size = Vector3(4, 0.4, 1.2)
 
 [node name="Main" type="Node3D" unique_id=956873530]
 script = ExtResource("7_main_script")
@@ -53,7 +75,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
 
 [node name="Camera3D" parent="Player/CameraPivot" index="0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 5.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7, 0.4, 3.5)
 
 [node name="Orbs" type="Node3D" parent="." unique_id=420975568]
 
@@ -89,6 +111,20 @@ offset_top = -42.0
 offset_right = 240.0
 offset_bottom = 0.0
 grow_vertical = 0
+
+[node name="Crosshair" parent="HUD" unique_id=113912722 instance=ExtResource("16_crosshair")]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="PauseMenu" parent="." unique_id=708856309 instance=ExtResource("10_pause_menu")]
 
@@ -160,6 +196,215 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 3, 30)
 
 [node name="HookBlock8" parent="NavigationRegion3D/HookBlocks" unique_id=1228797915 instance=ExtResource("15_hook_block")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 5, 25)
+
+[node name="Structures" type="Node3D" parent="NavigationRegion3D" unique_id=665370463]
+
+[node name="Ramp15" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=32751270]
+transform = Transform3D(1, 0, 0, 0, 0.966, 0.259, 0, -0.259, 0.966, 0.8814647, 0.67131793, -25)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp15" unique_id=554840970]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp15" unique_id=1339300026]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp15" unique_id=846975760]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "15°"
+font_size = 28
+outline_size = 2
+
+[node name="Ramp30" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=709069006]
+transform = Transform3D(1, 0, 0, 0, 0.866, 0.5, 0, -0.5, 0.866, 5.1061487, 1.2768232, -25)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp30" unique_id=27454408]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp30" unique_id=967258578]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp30" unique_id=2115664845]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "30°"
+font_size = 28
+outline_size = 2
+
+[node name="Ramp45" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=363158352]
+transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 9.285553, 1.7369372, -25)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp45" unique_id=923697539]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp45" unique_id=594115317]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp45" unique_id=275148110]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "45°"
+font_size = 28
+outline_size = 2
+
+[node name="Ramp60" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=181708283]
+transform = Transform3D(1, 0, 0, 0, 0.5, 0.866, 0, -0.866, 0.5, 13.177818, 2.2393308, -25)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp60" unique_id=1381361431]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp60" unique_id=1794432033]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp60" unique_id=655017917]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "60°"
+font_size = 28
+outline_size = 2
+
+[node name="Ramp75" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=911536111]
+transform = Transform3D(1, 0, 0, 0, 0.259, 0.966, 0, -0.966, 0.259, 17.062223, 2.6519608, -25)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp75" unique_id=101929596]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp75" unique_id=1216956014]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp75" unique_id=1121200189]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "75°"
+font_size = 28
+outline_size = 2
+
+[node name="Stairs1" type="Node3D" parent="NavigationRegion3D/Structures" unique_id=322712145]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 20)
+
+[node name="RampCollision" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs1" unique_id=1990321126]
+transform = Transform3D(-0.99758834, 0.024639934, -0.06489673, 0, 0.935, 0.355, 0.06940827, 0.35414386, -0.9327451, 0, 0.8, -1.5)
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Stairs1/RampCollision" unique_id=1203966687]
+shape = SubResource("BoxShape3D_stair_ramp")
+
+[node name="Step1" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs1" unique_id=941143263]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs1/Step1" unique_id=1231513062]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step2" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs1" unique_id=2092114318]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -1)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs1/Step2" unique_id=1385644964]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step3" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs1" unique_id=476420461]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs1/Step3" unique_id=34130028]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step4" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs1" unique_id=1207963942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -3)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs1/Step4" unique_id=1288446549]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Stairs2" type="Node3D" parent="NavigationRegion3D/Structures" unique_id=2144552735]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+
+[node name="RampCollision" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs2" unique_id=1134461742]
+transform = Transform3D(-0.9997079, 0.00858047, -0.022599269, 0, 0.935, 0.355, 0.024170341, 0.35489628, -0.9347269, 0, 0.8, -1.5)
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Stairs2/RampCollision" unique_id=180749598]
+shape = SubResource("BoxShape3D_stair_ramp")
+
+[node name="Step1" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs2" unique_id=1094230910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs2/Step1" unique_id=1993204475]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step2" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs2" unique_id=1498496938]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -1)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs2/Step2" unique_id=853865079]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step3" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs2" unique_id=1278250908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs2/Step3" unique_id=1790403792]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step4" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs2" unique_id=800394877]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -3)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs2/Step4" unique_id=587485196]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Stairs3" type="Node3D" parent="NavigationRegion3D/Structures" unique_id=42980270]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 20)
+
+[node name="RampCollision" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs3" unique_id=744032658]
+transform = Transform3D(1, 0, 0, 0, 0.935, 0.355, 0, -0.355, 0.935, 0, 0.8, -1.5)
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Stairs3/RampCollision" unique_id=1735749684]
+transform = Transform3D(-0.9998654, 0.005823216, -0.015337202, -0.005823216, 0.74803007, 0.66363955, 0.015337203, 0.66363955, -0.74789536, 0, 0, 0)
+shape = SubResource("BoxShape3D_stair_ramp")
+
+[node name="Step1" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs3" unique_id=1103674921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs3/Step1" unique_id=1509623239]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step2" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs3" unique_id=829744390]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -1)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs3/Step2" unique_id=345765885]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step3" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs3" unique_id=500634269]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs3/Step3" unique_id=715108402]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
+
+[node name="Step4" type="StaticBody3D" parent="NavigationRegion3D/Structures/Stairs3" unique_id=200226873]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -3)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Stairs3/Step4" unique_id=966484246]
+material_override = SubResource("Material_step")
+mesh = SubResource("BoxMesh_step")
 
 [node name="PracticeGround" parent="NavigationRegion3D" unique_id=430140652 instance=ExtResource("2_practice_ground")]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)

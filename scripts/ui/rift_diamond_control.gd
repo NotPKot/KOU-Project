@@ -1,6 +1,6 @@
 extends Control
 
-const CENTER_DEADZONE := 28.0
+const CENTER_DEADZONE := 50.0
 
 var highlighted_direction: String = ""
 var selected_sequence: PackedStringArray = PackedStringArray()

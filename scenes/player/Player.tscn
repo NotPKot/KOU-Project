@@ -44,8 +44,8 @@ disabled = true
 position = Vector3(0, 1.25, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-position = Vector3(0, 1.0, 5.4)
+position = Vector3(0.7, 0.4, 3.5)
 current = true
-fov = 62.0
+fov = 65.0
 near = 0.05
 far = 120.0

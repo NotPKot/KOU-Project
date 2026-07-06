@@ -1,6 +1,7 @@
 extends Node
 
 @export var crossfade_duration: float = 2.0
+@export var fade_in_duration: float = 3.0
 
 var _channels: Array[AudioStreamPlayer] = []
 var _active_channel: int = 0
@@ -11,15 +12,8 @@ var _calm_tracks: Array[AudioStream] = []
 var _tension_tracks: Array[AudioStream] = []
 var _combat_tracks: Array[AudioStream] = []
 
-const CALM_DIR := "res://placeholder/audio/music/chill/"
-const TENSION_DIR := "res://placeholder/audio/music/tension/"
-const COMBAT_DIR := "res://placeholder/audio/music/fight/"
-
-
-@export var fade_in_duration: float = 3.0
 
 func _ready() -> void:
-	print("[MusicPlayer] _ready() called")
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.name = "Channel" + str(i)
@@ -28,18 +22,49 @@ func _ready() -> void:
 		_channels.append(p)
 
 	MusicManager.music_state_changed.connect(_on_music_state_changed)
-	print("[MusicPlayer] connected to music_state_changed signal")
-	_load_tracks()
-	print("[MusicPlayer] tracks loaded: calm=", _calm_tracks.size(), " tension=", _tension_tracks.size(), " combat=", _combat_tracks.size())
-	_start_calm_fade_in()
+
+	_load_all_tracks()
+	if not _calm_tracks.is_empty():
+		_start_calm_fade_in()
+
+
+func _load_all_tracks() -> void:
+	_calm_tracks = _load_tracks_from("res://placeholder/audio/music/chill/")
+	_tension_tracks = _load_tracks_from("res://placeholder/audio/music/tension/")
+	_combat_tracks = _load_tracks_from("res://placeholder/audio/music/fight/")
+
+
+static func _load_tracks_from(dir: String) -> Array[AudioStream]:
+	var out: Array[AudioStream] = []
+	for entry in _get_ogg_files(dir):
+		var s := load(dir.path_join(entry)) as AudioStream
+		if s != null:
+			if s is AudioStreamOggVorbis:
+				s.loop = true
+			out.append(s)
+	return out
+
+
+static func _get_ogg_files(dir: String) -> PackedStringArray:
+	var known: Dictionary = {
+		"res://placeholder/audio/music/chill/": [
+			"DELTARUNE-Paradise_-Paradise-N64-Zelda-Majora_s-Mask-Style-Cover.ogg",
+		],
+		"res://placeholder/audio/music/tension/": [
+			"YTMP3GG_YouTube_Inscryption-OST-11-The-Temple-of-Beasts_Media_OlYqw4Kkvj8_006_128k.ogg",
+			"YTMP3GG_YouTube_Brutal-Orchestra-OST-The-Far-Shore-Area-_Media_20DCCVX-PGg_009_128k.ogg",
+		],
+		"res://placeholder/audio/music/fight/": [
+			"Rift-of-the-NecroDancer-OST-Matriarch-by-Jules-Conroy_1_.ogg",
+			"froghorn.exe.ogg",
+			"running-through-the-garden-without-a-car_Media_K9Pk68tPoW8_009_128k.ogg",
+		],
+	}
+	return known.get(dir, [])
 
 
 func _start_calm_fade_in() -> void:
-	var pool := _calm_tracks
-	if pool.is_empty():
-		return
-
-	var stream := pool[randi() % pool.size()]
+	var stream := _calm_tracks[randi() % _calm_tracks.size()]
 	var player := _channels[0]
 	player.stream = stream
 	player.volume_db = -80.0
@@ -51,33 +76,7 @@ func _start_calm_fade_in() -> void:
 	_active_channel = 0
 
 
-func _load_tracks() -> void:
-	_calm_tracks = _load_ogg_dir(CALM_DIR)
-	_tension_tracks = _load_ogg_dir(TENSION_DIR)
-	_combat_tracks = _load_ogg_dir(COMBAT_DIR)
-
-
-static func _load_ogg_dir(dir_path: String) -> Array[AudioStream]:
-	var result: Array[AudioStream] = []
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		return result
-	dir.list_dir_begin()
-	var file := dir.get_next()
-	while file != "":
-		if file.ends_with(".ogg") and not file.ends_with(".ogg.import"):
-			var stream := load(dir_path.path_join(file)) as AudioStream
-			if stream != null:
-				if stream is AudioStreamOggVorbis:
-					stream.loop = true
-				result.append(stream)
-		file = dir.get_next()
-	dir.list_dir_end()
-	return result
-
-
 func _on_music_state_changed(new_state: MusicManager.EMusicState, _old_state: MusicManager.EMusicState) -> void:
-	print("[MusicPlayer] signal received: ", MusicManager.STATE_NAMES[new_state])
 	_play_state(new_state)
 
 
@@ -94,7 +93,7 @@ func _play_state(state: MusicManager.EMusicState) -> void:
 	if pool.is_empty():
 		return
 
-	var stream: AudioStream = pool[randi() % pool.size()]
+	var stream := pool[randi() % pool.size()]
 	if stream == _current_stream:
 		return
 

@@ -13,6 +13,9 @@ extends CharacterBody3D
 @export var temporal_impulse_air_acceleration: float = 14.0
 @export var temporal_impulse_gravity_scale: float = 0.45
 
+@export_group("Floor")
+@export var floor_max_angle_degrees: float = 80.0
+
 @export_group("Jump")
 @export var jump_velocity: float = 8.5
 
@@ -21,8 +24,8 @@ extends CharacterBody3D
 
 @export_group("Camera")
 @export_range(0.0005, 0.01, 0.0005) var mouse_sensitivity: float = 0.003
-@export var min_pitch_degrees: float = -55.0
-@export var max_pitch_degrees: float = 18.0
+@export var min_pitch_degrees: float = -65.0
+@export var max_pitch_degrees: float = 55.0
 
 @onready var _camera_pivot: Node3D = $CameraPivot
 @onready var _camera: Camera3D = $CameraPivot/Camera3D
@@ -63,6 +66,7 @@ func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	_min_pitch_rad = deg_to_rad(min_pitch_degrees)
 	_max_pitch_rad = deg_to_rad(max_pitch_degrees)
+	floor_max_angle = deg_to_rad(floor_max_angle_degrees)
 	_apply_camera_rotation()
 
 
@@ -128,14 +132,14 @@ func _physics_process(delta: float) -> void:
 
 	if _dash != null and _dash.physics_tick(delta):
 		if _teleport != null and _teleport.is_charging:
-			var cam_basis := _camera_pivot.global_transform.basis
-			_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+			var cam_basis := _camera.global_transform.basis
+			_teleport.update_aim(_camera.global_position, -cam_basis.z)
 		return
 
 	if _hook != null and _hook.physics_tick(delta):
 		if _teleport != null and _teleport.is_charging:
-			var cam_basis := _camera_pivot.global_transform.basis
-			_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+			var cam_basis := _camera.global_transform.basis
+			_teleport.update_aim(_camera.global_position, -cam_basis.z)
 		return
 
 	var move_direction: Vector3 = _get_camera_relative_direction(input_vector)
@@ -164,8 +168,8 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if _teleport != null and _teleport.is_charging:
-		var cam_basis := _camera_pivot.global_transform.basis
-		_teleport.update_aim(_camera_pivot.global_position, -cam_basis.z)
+		var cam_basis := _camera.global_transform.basis
+		_teleport.update_aim(_camera.global_position, -cam_basis.z)
 
 	_face_motion_direction(delta)
 
@@ -317,9 +321,9 @@ func _on_mobility_pressed() -> void:
 	if _input_locked or _aim_locked:
 		return
 
-	var cam_basis := _camera_pivot.global_transform.basis
+	var cam_basis := _camera.global_transform.basis
 	var cam_fwd: Vector3 = -cam_basis.z
-	var cam_pos: Vector3 = _camera_pivot.global_position
+	var cam_pos: Vector3 = _camera.global_position
 
 	if _dash != null:
 		_dash.fire(cam_fwd)
@@ -344,7 +348,7 @@ func _raycast_aim(from: Vector3, forward: Vector3, max_dist: float) -> Vector3:
 
 	var query := PhysicsRayQueryParameters3D.new()
 	query.from = from
-	query.to = global_position + forward * max_dist
+	query.to = from + forward * max_dist
 	query.collision_mask = 1 | 4
 	query.hit_from_inside = true
 	query.exclude = [get_rid()]
