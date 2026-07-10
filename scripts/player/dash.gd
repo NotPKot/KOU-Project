@@ -24,8 +24,11 @@ func fire(camera_forward: Vector3) -> void:
 		return
 
 	_direction = camera_forward
+	_direction.y = 0.0
 	if _direction.length_squared() < 0.001:
 		_direction = -_player.global_transform.basis.z
+		_direction.y = 0.0
+	_direction = _direction.normalized()
 
 	is_dashing = true
 	_timer = dash_duration
@@ -43,11 +46,12 @@ func physics_tick(delta: float) -> bool:
 	_timer -= delta
 	if _timer <= 0.0:
 		is_dashing = false
-		_player.velocity = Vector3.ZERO
+		_player.velocity.x = 0.0
+		_player.velocity.z = 0.0
 		dash_ended.emit()
 		_cool_timer = cooldown
 		return false
 
-	_player.velocity = _direction * dash_speed
-	_player.move_and_slide()
+	_player.velocity.x = _direction.x * dash_speed
+	_player.velocity.z = _direction.z * dash_speed
 	return true

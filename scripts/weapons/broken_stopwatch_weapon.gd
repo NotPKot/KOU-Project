@@ -28,8 +28,8 @@ const RIFTS := {
 # -- CRONOMETRO SLASH TUNING
 @export var slash_spawn_height: float = 1.25
 @export var slash_forward_offset: float = 0.75
-@export var slash_base_range: float = 1.55
-@export var slash_scale: float = 1.0
+@export var slash_base_range: float = 2.5
+@export var slash_scale: float = 1.5
 @export var slash_variant_cycle: bool = true
 @export var slash_random_variants: bool = false
 

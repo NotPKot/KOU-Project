@@ -142,8 +142,6 @@ func _tick_swing(delta: float) -> void:
 
 	_player.velocity += Vector3.DOWN * _gravity * delta
 
-	_player.move_and_slide()
-
 
 func _get_swing_input_dir(radial_dir: Vector3) -> Vector3:
 	var right: Vector3

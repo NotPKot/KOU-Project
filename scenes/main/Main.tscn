@@ -15,6 +15,7 @@
 [ext_resource type="PackedScene" path="res://scenes/triggers/CombatButton.tscn" id="14_jsdfw"]
 [ext_resource type="PackedScene" path="res://scenes/worlds/hook_blocks/HookBlock.tscn" id="15_hook_block"]
 [ext_resource type="PackedScene" path="res://scenes/ui/Crosshair.tscn" id="16_crosshair"]
+[ext_resource type="PackedScene" path="res://scenes/ui/DeathScreen.tscn" id="17_death_screen"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -97,11 +98,6 @@ layer = 5
 [node name="HealthBar" parent="HUD" unique_id=1898510102 instance=ExtResource("9_health_bar")]
 layout_mode = 3
 anchors_preset = 2
-offset_left = 0.0
-offset_top = -27.0
-offset_right = 240.0
-offset_bottom = 0.0
-grow_vertical = 0
 
 [node name="CooldownHud" parent="HUD" unique_id=244158569 instance=ExtResource("12_cooldown_hud")]
 layout_mode = 3
@@ -294,6 +290,25 @@ text = "75°"
 font_size = 28
 outline_size = 2
 
+[node name="Ramp80" type="StaticBody3D" parent="NavigationRegion3D/Structures" unique_id=1314514988]
+transform = Transform3D(-1, 8.611503e-08, 1.5184407e-08, 0, 0.17368938, -0.98504114, -8.742278e-08, -0.98504114, -0.17368938, 21.241968, 2.4934113, -25.215115)
+
+[node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Structures/Ramp80" unique_id=1624528234]
+material_override = SubResource("Material_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="Collision" type="CollisionShape3D" parent="NavigationRegion3D/Structures/Ramp80" unique_id=863226966]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Label" type="Label3D" parent="NavigationRegion3D/Structures/Ramp80" unique_id=1569796167]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+billboard = 1
+modulate = Color(1, 1, 1, 0.9)
+outline_modulate = Color(0, 0, 0, 0.8)
+text = "75°"
+font_size = 28
+outline_size = 2
+
 [node name="Stairs1" type="Node3D" parent="NavigationRegion3D/Structures" unique_id=322712145]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 20)
 
@@ -423,6 +438,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
 
 [node name="Top" parent="CombatButton" index="2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+
+[node name="DeathScreen" parent="." unique_id=1469566278 instance=ExtResource("17_death_screen")]
 
 [editable path="Player"]
 [editable path="NavigationRegion3D/PracticeGround"]

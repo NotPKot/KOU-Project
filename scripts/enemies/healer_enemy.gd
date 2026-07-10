@@ -736,9 +736,7 @@ func _remember_cover(pos: Vector3) -> void:
 func _physics_process(delta: float) -> void:
 	_execute_action(_current_action, delta)
 	_apply_gravity(delta)
-
-
-
+	move_and_slide()
 
 
 func _apply_gravity(delta: float) -> void:
@@ -756,7 +754,6 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 	if _nav_agent.is_navigation_finished():
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
-		move_and_slide()
 		return
 
 	var next_point := _nav_agent.get_next_path_position()
@@ -783,7 +780,6 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
-	move_and_slide()
 
 
 func _avoid_allies(min_dist: float) -> Vector3:
@@ -806,7 +802,6 @@ func _avoid_allies(min_dist: float) -> Vector3:
 func _stand_still(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, 200.0 * delta)
 	velocity.z = move_toward(velocity.z, 0.0, 200.0 * delta)
-	move_and_slide()
 
 
 func _snap_to_navmesh(pos: Vector3) -> Vector3:

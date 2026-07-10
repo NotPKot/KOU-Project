@@ -1,14 +1,18 @@
 extends CharacterBody3D
 
-enum State { CHASE, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
+enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 
 @export_group("Movement")
 @export var walk_speed: float = 3.5
 @export var acceleration: float = 10.0
-@export var travel_speed: float = 8.0
+@export var travel_speed: float = 6.0
+
+@export_group("Dash")
+@export var fixed_dash_distance: float = 16.0
 
 @export_group("Timing")
-@export var submerge_duration: float = 0.5
+@export var telegraph_duration: float = 1.0
+@export var submerge_duration: float = 0.3
 @export var attack_duration: float = 0.3
 @export var recovery_duration: float = 2.0
 
@@ -35,7 +39,6 @@ var _can_see_cache: bool = false
 var _can_see_frame: int = -1
 var _effects: Dictionary = {}
 var _smooth_dir: Vector3 = Vector3.FORWARD
-var _nav_map_ready: bool = false
 
 var _origin: Vector3 = Vector3.ZERO
 var _destination: Vector3 = Vector3.ZERO
@@ -60,7 +63,6 @@ func _ready() -> void:
 	add_to_group("enemies")
 
 	NavigationServer3D.map_changed.connect(_on_nav_map_changed)
-	_nav_map_ready = false
 
 	_nav_agent.path_desired_distance = 0.5
 	_nav_agent.target_desired_distance = 0.5
@@ -103,6 +105,11 @@ func _update_fsm(delta: float) -> void:
 	match _state:
 		State.CHASE:
 			if _can_see_player_cached() and dist_sq <= aggro_range * aggro_range:
+				_change_state(State.TELEGRAPH)
+
+		State.TELEGRAPH:
+			_update_telegraph_indicator()
+			if _state_elapsed >= telegraph_duration:
 				_change_state(State.SUBMERGE)
 
 		State.SUBMERGE:
@@ -117,13 +124,15 @@ func _update_fsm(delta: float) -> void:
 			global_position = pos
 			_update_indicator(pos)
 
-			if _state_elapsed >= 0.1:
+			if _state_elapsed >= 0.5:
 				var player_pos := _target.global_position
 				player_pos.y = 0.0
 				var circle_pos := pos
 				circle_pos.y = 0.0
 				if circle_pos.distance_squared_to(player_pos) <= indicator_radius * indicator_radius:
-					_triggered_by_player = true
+					if not _triggered_by_player:
+						_triggered_by_player = true
+				if _triggered_by_player:
 					_change_state(State.ATTACK)
 
 			if _travel_progress >= 1.0:
@@ -140,22 +149,36 @@ func _update_fsm(delta: float) -> void:
 				_change_state(State.CHASE)
 
 
+func _calculate_destination() -> void:
+	_origin = global_position
+	var dir := (_target.global_position - _origin)
+	dir.y = 0.0
+	if dir.length_squared() < 0.001:
+		dir = Vector3.FORWARD
+	else:
+		dir = dir.normalized()
+	_destination = _origin + dir * fixed_dash_distance
+	_destination.y = _origin.y
+
+
 func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_elapsed = 0.0
 	_hit_dealt = false
 
 	match new_state:
-		State.SUBMERGE:
-			if _target != null:
-				_destination = _target.global_position
-				_origin = global_position
-				_destination.y = _origin.y
+		State.TELEGRAPH:
+			_calculate_destination()
+			_indicator.visible = true
+			_direction_line.visible = true
 
-		State.TRAVEL:
+		State.SUBMERGE:
 			_visual.visible = false
 			_body_mesh.visible = false
 			_set_collision_enabled(false)
+			global_position = _origin
+
+		State.TRAVEL:
 			_travel_progress = 0.0
 			_triggered_by_player = false
 			global_position = _origin
@@ -178,6 +201,21 @@ func _change_state(new_state: State) -> void:
 			_set_collision_enabled(true)
 			_indicator.visible = false
 			_direction_line.visible = false
+
+
+func _update_telegraph_indicator() -> void:
+	var dest_ground := Vector3(_destination.x, 0.0, _destination.z)
+	_indicator.global_position = dest_ground
+
+	var origin_ground := Vector3(_origin.x, 0.0, _origin.z)
+	var line_dir := dest_ground - origin_ground
+	var line_dist := line_dir.length()
+	if line_dist > 0.01:
+		var mid := origin_ground + line_dir * 0.5
+		_direction_line.global_position = Vector3(mid.x, 0.02, mid.z)
+		_direction_line.scale = Vector3(1.0, 1.0, line_dist)
+		_direction_line.look_at(dest_ground, Vector3.UP)
+	_direction_line.visible = line_dist > 0.1
 
 
 func _update_indicator(current: Vector3) -> void:
@@ -210,7 +248,7 @@ func _deal_dome_damage() -> void:
 func _set_collision_enabled(enabled: bool) -> void:
 	if enabled:
 		collision_layer = 2
-		collision_mask = 3
+		collision_mask = 1
 	else:
 		collision_layer = 0
 		collision_mask = 0
@@ -349,7 +387,7 @@ func _get_vision_query() -> PhysicsRayQueryParameters3D:
 
 func _on_nav_map_changed(map_rid: RID) -> void:
 	if map_rid == _nav_agent.get_navigation_map():
-		_nav_map_ready = true
+		pass
 
 
 func apply_effect(effect: StatusEffect) -> void:

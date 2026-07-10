@@ -20,3 +20,9 @@ func _ready() -> void:
 		var block := hook_scene.instantiate()
 		block.position = p
 		add_child(block)
+
+	$Player.died.connect(_on_player_died)
+
+
+func _on_player_died() -> void:
+	$DeathScreen.show_death_screen()
