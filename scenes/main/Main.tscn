@@ -16,6 +16,7 @@
 [ext_resource type="PackedScene" path="res://scenes/worlds/hook_blocks/HookBlock.tscn" id="15_hook_block"]
 [ext_resource type="PackedScene" path="res://scenes/ui/Crosshair.tscn" id="16_crosshair"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DeathScreen.tscn" id="17_death_screen"]
+[ext_resource type="PackedScene" path="res://scenes/triggers/VoidHurtbox.tscn" id="18_void_hurtbox"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -440,6 +441,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 
 [node name="DeathScreen" parent="." unique_id=1469566278 instance=ExtResource("17_death_screen")]
+
+[node name="VoidHurtbox" parent="." instance=ExtResource("18_void_hurtbox")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -15, 0)
 
 [editable path="Player"]
 [editable path="NavigationRegion3D/PracticeGround"]

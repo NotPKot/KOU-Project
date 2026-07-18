@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/triggers/void_hurtbox.gd" id="1_void_hurtbox"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_void"]
+size = Vector3(200, 1, 200)
+
+[node name="VoidHurtbox" type="Area3D"]
+script = ExtResource("1_void_hurtbox")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_void")

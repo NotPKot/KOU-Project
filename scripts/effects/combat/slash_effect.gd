@@ -37,9 +37,9 @@ func _ready() -> void:
 	_hitbox.body_entered.connect(_on_hit)
 
 
-func setup(slash_range: float, height: float, yaw_radians: float, roll_radians: float, scale_multiplier: float) -> void:
+func setup(slash_range: float, height: float, pitch_radians: float, yaw_radians: float, roll_radians: float, scale_multiplier: float) -> void:
 	position.y += height
-	rotation = Vector3(deg_to_rad(vertical_tilt_degrees), yaw_radians, roll_radians)
+	rotation = Vector3(pitch_radians + deg_to_rad(vertical_tilt_degrees), yaw_radians, roll_radians)
 	scale = Vector3.ONE * scale_multiplier
 	_base_scale = scale
 	outer_radius = slash_range

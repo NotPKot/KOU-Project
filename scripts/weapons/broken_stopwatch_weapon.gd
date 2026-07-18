@@ -29,7 +29,7 @@ const RIFTS := {
 @export var slash_spawn_height: float = 1.25
 @export var slash_forward_offset: float = 0.75
 @export var slash_base_range: float = 2.5
-@export var slash_scale: float = 1.5
+@export var slash_scale: float = 1.125
 @export var slash_variant_cycle: bool = true
 @export var slash_random_variants: bool = false
 
@@ -131,22 +131,26 @@ func _spawn_basic_slash() -> void:
 
 	var variant: Dictionary = _get_next_slash_variant()
 	var cam_basis: Basis = _camera_pivot.global_transform.basis
-	var forward: Vector3 = Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
+	var forward: Vector3 = (-cam_basis.z).normalized()
 
 	var slash: Node3D = SLASH_EFFECT_SCENE.instantiate() as Node3D
 	if slash == null:
 		return
 
+	# Debe pertenecer al arbol antes de usar coordenadas globales. De otro modo,
+	# global_position se resuelve sin el transform del mundo y el efecto puede
+	# aparecer en el origen al instanciarse.
+	get_tree().current_scene.add_child(slash)
+
 	slash.damage = BASE_SLASH_DAMAGE
 	slash.global_position = _owner_player.global_position + forward * slash_forward_offset
+	var pitch: float = asin(clampf(forward.y, -1.0, 1.0))
 	var yaw: float = atan2(-forward.x, -forward.z) + deg_to_rad(float(variant["yaw"]))
 	var roll: float = deg_to_rad(float(variant["roll"]))
 	var range_value: float = slash_base_range * float(variant["range"])
 
 	if slash.has_method("setup"):
-		slash.setup(range_value, slash_spawn_height, yaw, roll, slash_scale)
-
-	get_tree().current_scene.add_child(slash)
+		slash.setup(range_value, slash_spawn_height, pitch, yaw, roll, slash_scale)
 
 	var hitbox: Area3D = slash.get_node("Hitbox")
 	if hitbox != null:
