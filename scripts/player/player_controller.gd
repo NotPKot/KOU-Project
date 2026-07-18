@@ -7,6 +7,8 @@ signal died
 @export var air_max_speed: float = 8.0
 @export var ground_accel: float = 60.0
 @export var air_accel: float = 8.0
+@export var ground_friction: float = 6.0
+@export var ground_stop_speed: float = 2.0
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
 @export var floor_snap_length_value: float = 0.35
@@ -25,17 +27,16 @@ signal died
 @export var wall_friction: float = 0.8
 @export var slide_gravity_multiplier: float = 1.5
 
-# -- TRIMPING TUNING: superficies empinadas no son caminables, pero con suficiente velocidad convierten impulso horizontal en vertical.
+# -- TRIMPING TUNING: la velocidad se proyecta sobre el plano de una rampa, como en Source.
 @export_group("Trimping")
 @export var trimp_enabled: bool = true
 @export var trimp_min_speed: float = 12.0
-@export var trimp_full_speed: float = 32.0
-@export var trimp_min_slope_degrees: float = 55.0
-@export var trimp_full_slope_degrees: float = 82.0
-@export var trimp_max_boost: float = 13.5
-@export var trimp_impact_threshold: float = 0.18
+@export var trimp_min_slope_degrees: float = 12.0
+@export var trimp_max_slope_degrees: float = 65.0
+@export var trimp_min_impact_speed: float = 2.0
+@export var trimp_min_launch_speed: float = 1.5
 @export var trimp_cooldown: float = 0.14
-@export var trimp_preserve_horizontal_ratio: float = 0.88
+@export_range(0.0, 1.0, 0.01) var trimp_velocity_retention: float = 1.0
 
 @export_group("Jump")
 @export var jump_velocity: float = 8.5
@@ -66,6 +67,7 @@ var _hook: GrapplingHook = null
 var _teleport: Teleport = null
 var _air_control_timer: float = 0.0
 var _can_jump: bool = false
+var _jump_held: bool = false
 var _lifesteal_ratio: float = 0.0
 var _potion_heal_amount: int = 0
 var _potion_cooldown: float = 0.0
@@ -140,6 +142,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not Input.is_action_pressed("ui_accept"):
+		_jump_held = false
+
 	if _trimp_cooldown_timer > 0.0:
 		_trimp_cooldown_timer = maxf(_trimp_cooldown_timer - delta, 0.0)
 
@@ -167,12 +172,18 @@ func _physics_process(delta: float) -> void:
 			_teleport.update_aim(_camera.global_position, -cam_basis.z)
 		return
 
-	if _hook != null and _hook.physics_tick(delta):
-		_finish_special_motion(delta, false)
-		if _teleport != null and _teleport.is_charging:
-			var cam_basis: Basis = _camera.global_transform.basis
-			_teleport.update_aim(_camera.global_position, -cam_basis.z)
-		return
+	if _hook != null and _hook.is_attached:
+		if Input.is_action_just_pressed("ui_accept"):
+			_hook.release("jump_cancel")
+			if _teleport != null and _teleport.is_charging:
+				var cam_basis: Basis = _camera.global_transform.basis
+				_teleport.update_aim(_camera.global_position, -cam_basis.z)
+		elif _hook.physics_tick(delta):
+			_finish_special_motion(delta, false)
+			if _teleport != null and _teleport.is_charging:
+				var cam_basis: Basis = _camera.global_transform.basis
+				_teleport.update_aim(_camera.global_position, -cam_basis.z)
+			return
 
 	var wish_dir: Vector3 = _get_camera_relative_direction(input_vector)
 	if _air_control_timer > 0.0:
@@ -188,18 +199,16 @@ func _physics_process(delta: float) -> void:
 		on_steep_wall = wall_angle > floor_max_angle_degrees and wall_angle <= 100.0
 
 	if is_on_floor():
-		if wish_dir.is_zero_approx():
-			var decel: float = ground_accel * delta
-			var h_speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
-			if h_speed > decel:
-				var stop: Vector3 = -Vector3(velocity.x, 0.0, velocity.z).normalized() * decel
-				velocity.x += stop.x
-				velocity.z += stop.z
-			else:
-				velocity.x = 0.0
-				velocity.z = 0.0
+		if _can_jump and Input.is_action_pressed("ui_accept") and not _jump_held:
+			velocity.y = jump_velocity
+			_jump_held = true
 		else:
-			apply_ground_acceleration(wish_dir, max_speed, ground_accel, delta)
+			_apply_ground_friction(delta)
+			if not wish_dir.is_zero_approx():
+				apply_ground_acceleration(wish_dir, max_speed, ground_accel, delta)
+
+		if velocity.y < 0.0:
+			velocity.y = -0.1
 
 	elif on_steep_wall:
 		apply_acceleration(wish_dir, air_max_speed, current_air_accel, delta)
@@ -212,12 +221,6 @@ func _physics_process(delta: float) -> void:
 		apply_acceleration(wish_dir, air_max_speed, current_air_accel, delta)
 		var gravity_scale: float = temporal_impulse_gravity_scale if _air_control_timer > 0.0 and velocity.y < 0.0 else 1.0
 		velocity.y = max(velocity.y - gravity * gravity_scale * delta, -terminal_velocity)
-
-	if is_on_floor() and velocity.y < 0.0:
-		velocity.y = -0.1
-
-	if _can_jump and is_on_floor() and Input.is_action_just_pressed("ui_accept"):
-		velocity.y = jump_velocity
 
 	_print_movement_debug(delta, wish_dir)
 	_move_and_slide_with_trimp(velocity)
@@ -294,9 +297,27 @@ func apply_acceleration(wish_dir: Vector3, target_speed: float, accel: float, de
 
 func apply_ground_acceleration(wish_dir: Vector3, target_speed: float, accel: float, delta: float) -> void:
 	var horizontal_velocity: Vector3 = Vector3(velocity.x, 0.0, velocity.z)
-	var target_velocity: Vector3 = wish_dir * target_speed
-	horizontal_velocity = horizontal_velocity.move_toward(target_velocity, accel * delta)
-	horizontal_velocity = horizontal_velocity.limit_length(target_speed)
+	var current_speed: float = horizontal_velocity.dot(wish_dir)
+	var add_speed: float = minf(target_speed - current_speed, accel * delta)
+	if add_speed <= 0.0:
+		return
+
+	horizontal_velocity += wish_dir * add_speed
+	velocity.x = horizontal_velocity.x
+	velocity.z = horizontal_velocity.z
+
+
+func _apply_ground_friction(delta: float) -> void:
+	var horizontal_velocity: Vector3 = Vector3(velocity.x, 0.0, velocity.z)
+	var speed: float = horizontal_velocity.length()
+	if speed <= 0.0:
+		return
+
+	# Quake aplica friccion gradualmente y nunca recorta el vector a max_speed.
+	# Esto deja que un salto del gancho conserve su inercia al aterrizar.
+	var control: float = maxf(speed, ground_stop_speed)
+	var new_speed: float = maxf(speed - control * ground_friction * delta, 0.0)
+	horizontal_velocity *= new_speed / speed
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
 
@@ -322,9 +343,8 @@ func _try_apply_trimp(pre_slide_velocity: Vector3) -> void:
 	if horizontal_speed < trimp_min_speed:
 		return
 
-	var horizontal_dir: Vector3 = horizontal_velocity / horizontal_speed
-	var best_boost: float = 0.0
-	var best_normal: Vector3 = Vector3.UP
+	var best_launch_velocity: Vector3 = Vector3.ZERO
+	var best_launch_speed: float = 0.0
 
 	for index in range(get_slide_collision_count()):
 		var collision: KinematicCollision3D = get_slide_collision(index)
@@ -336,42 +356,28 @@ func _try_apply_trimp(pre_slide_velocity: Vector3) -> void:
 			continue
 
 		var slope_angle: float = rad_to_deg(normal.angle_to(Vector3.UP))
-		if slope_angle < trimp_min_slope_degrees:
+		if slope_angle < trimp_min_slope_degrees or slope_angle > trimp_max_slope_degrees:
 			continue
 
-		var normal_xz: Vector3 = Vector3(normal.x, 0.0, normal.z)
-		if normal_xz.length_squared() < 0.0001:
+		var impact_speed: float = -pre_slide_velocity.dot(normal)
+		if impact_speed < trimp_min_impact_speed:
 			continue
 
-		normal_xz = normal_xz.normalized()
-		var impact: float = -horizontal_dir.dot(normal_xz)
-		if impact < trimp_impact_threshold:
+		# Conserva la componente paralela a la rampa. La componente vertical del
+		# resultado nace de la geometria del impacto, no de un impulso adicional.
+		var projected_velocity: Vector3 = pre_slide_velocity.slide(normal) * trimp_velocity_retention
+		if projected_velocity.y < trimp_min_launch_speed:
 			continue
 
-		var speed_factor: float = _inverse_lerp_clamped(trimp_min_speed, trimp_full_speed, horizontal_speed)
-		var slope_factor: float = _inverse_lerp_clamped(trimp_min_slope_degrees, trimp_full_slope_degrees, slope_angle)
-		var impact_factor: float = _inverse_lerp_clamped(trimp_impact_threshold, 1.0, impact)
-		var boost: float = trimp_max_boost * speed_factor * slope_factor * impact_factor
+		if projected_velocity.y > best_launch_speed:
+			best_launch_speed = projected_velocity.y
+			best_launch_velocity = projected_velocity
 
-		if boost > best_boost:
-			best_boost = boost
-			best_normal = normal
-
-	if best_boost <= 0.0:
+	if best_launch_speed <= 0.0:
 		return
 
-	var slid_velocity: Vector3 = pre_slide_velocity.slide(best_normal)
-	velocity.x = slid_velocity.x * trimp_preserve_horizontal_ratio
-	velocity.z = slid_velocity.z * trimp_preserve_horizontal_ratio
-	velocity.y = max(velocity.y, 0.0) + best_boost
+	velocity = best_launch_velocity
 	_trimp_cooldown_timer = trimp_cooldown
-
-
-func _inverse_lerp_clamped(from_value: float, to_value: float, value: float) -> float:
-	if is_equal_approx(from_value, to_value):
-		return 0.0
-
-	return clampf((value - from_value) / (to_value - from_value), 0.0, 1.0)
 
 
 func _print_movement_debug(delta: float, wish_dir: Vector3) -> void:

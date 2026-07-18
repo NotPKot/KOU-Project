@@ -1,29 +1,31 @@
-# Trimping controlado
+# Trimping por proyeccion
 
-El trimping de KOU esta inspirado en el movimiento de Quake III, pero no intenta copiarlo completo. La referencia local esta en:
+El trimping de KOU toma la idea de la resolucion de colisiones de Source: una rampa no anade un salto, sino que redirige la velocidad que entra en ella.
 
 - `REFERENCIA/Quake-III-Arena-master/code/game/bg_pmove.c`
 - `REFERENCIA/Quake-III-Arena-master/code/game/bg_slidemove.c`
 
 La pieza importante es `PM_ClipVelocity()`: proyecta la velocidad del jugador contra la normal de una superficie. En terminos simples, parte de la velocidad que iba hacia la pared se redirige a lo largo del plano.
 
-En KOU usamos una version mas arcade y configurable:
+En KOU el efecto se calcula asi:
 
-1. Las superficies por encima de `floor_max_angle_degrees` no son caminables.
-2. Si la superficie es bastante empinada y el jugador llega con suficiente velocidad, se calcula un impulso vertical.
-3. El impulso depende de velocidad, inclinacion e impacto frontal.
-4. El impulso tiene cooldown corto para evitar multiples disparos por una sola colision.
+```gdscript
+projected_velocity = incoming_velocity.slide(ramp_normal)
+```
+
+1. Solo se consideran rampas dentro de un rango de inclinacion; las paredes no lanzan al jugador.
+2. El jugador debe llegar con suficiente velocidad y realmente entrar en la rampa.
+3. La componente paralela al plano se conserva. Por eso la altura del lanzamiento depende naturalmente de la velocidad y el angulo de la rampa.
+4. Un cooldown corto evita repetir el mismo lanzamiento durante el contacto.
 
 Los parametros estan en `scripts/player/player_controller.gd`, en el bloque `Trimping`.
 
 Valores clave:
 
 - `trimp_min_speed`: velocidad minima para activar el efecto.
-- `trimp_full_speed`: velocidad donde el factor de velocidad llega al maximo.
-- `trimp_min_slope_degrees`: pendiente minima que puede hacer trimping.
-- `trimp_full_slope_degrees`: pendiente donde el factor de inclinacion llega al maximo.
-- `trimp_max_boost`: fuerza vertical maxima.
-- `trimp_impact_threshold`: cuanto debe ir el jugador hacia la superficie.
-- `trimp_preserve_horizontal_ratio`: cuanta velocidad horizontal conserva tras el impulso.
+- `trimp_min_slope_degrees` y `trimp_max_slope_degrees`: rango de rampas validas.
+- `trimp_min_impact_speed`: velocidad minima hacia la normal de la rampa.
+- `trimp_min_launch_speed`: componente vertical minima para despegar.
+- `trimp_velocity_retention`: fraccion de la velocidad proyectada que se conserva; `1.0` es la proyeccion pura.
 
-Esto permite que una pared de 75 grados se comporte como obstaculo si el jugador va lento, pero como rampa si llega con suficiente velocidad.
+Con una rampa de 20 a 45 grados, entrar rapido genera una salida ascendente proporcional. En una pared pronunciada se bloquea el efecto, como corresponde a una colision normal.
