@@ -82,6 +82,17 @@ var _movement_debug_timer: float = 0.0
 const CLEAN_TIME_THRESHOLD: float = 1.8
 const REGEN_HPS: float = 16.0
 var _parry_window: float = 0.0
+var _shake_trauma: float = 0.0
+const SHAKE_DECAY: float = 8.0
+const SHAKE_INTENSITY: float = 6.0
+
+var _was_on_floor: bool = true
+var _squash_tween: Tween = null
+const JUMP_STRETCH_SCALE: Vector3 = Vector3(0.9, 1.15, 0.9)
+const JUMP_STRETCH_DURATION: float = 0.3
+const LAND_SQUASH_SCALE: Vector3 = Vector3(1.15, 0.8, 1.15)
+const LAND_SQUASH_DURATION: float = 0.08
+const LAND_RECOVER_DURATION: float = 0.15
 
 
 func _ready() -> void:
@@ -145,6 +156,8 @@ func _physics_process(delta: float) -> void:
 	if not Input.is_action_pressed("ui_accept"):
 		_jump_held = false
 
+	var was_on_floor_before := _was_on_floor
+
 	if _trimp_cooldown_timer > 0.0:
 		_trimp_cooldown_timer = maxf(_trimp_cooldown_timer - delta, 0.0)
 
@@ -158,6 +171,7 @@ func _physics_process(delta: float) -> void:
 			velocity.y = max(velocity.y - gravity * delta, -terminal_velocity)
 
 		move_and_slide()
+		_was_on_floor = is_on_floor()
 		return
 
 	var input_vector: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -170,6 +184,7 @@ func _physics_process(delta: float) -> void:
 		if _teleport != null and _teleport.is_charging:
 			var cam_basis: Basis = _camera.global_transform.basis
 			_teleport.update_aim(_camera.global_position, -cam_basis.z)
+		_was_on_floor = is_on_floor()
 		return
 
 	if _hook != null and _hook.is_attached:
@@ -183,6 +198,7 @@ func _physics_process(delta: float) -> void:
 			if _teleport != null and _teleport.is_charging:
 				var cam_basis: Basis = _camera.global_transform.basis
 				_teleport.update_aim(_camera.global_position, -cam_basis.z)
+			_was_on_floor = is_on_floor()
 			return
 
 	var wish_dir: Vector3 = _get_camera_relative_direction(input_vector)
@@ -202,6 +218,7 @@ func _physics_process(delta: float) -> void:
 		if _can_jump and Input.is_action_pressed("ui_accept") and not _jump_held:
 			velocity.y = jump_velocity
 			_jump_held = true
+			_trigger_jump_stretch()
 		else:
 			_apply_ground_friction(delta)
 			if not wish_dir.is_zero_approx():
@@ -224,6 +241,10 @@ func _physics_process(delta: float) -> void:
 
 	_print_movement_debug(delta, wish_dir)
 	_move_and_slide_with_trimp(velocity)
+
+	if not was_on_floor_before and is_on_floor():
+		_trigger_land_squash()
+	_was_on_floor = is_on_floor()
 
 	if _teleport != null and _teleport.is_charging:
 		var cam_basis: Basis = _camera.global_transform.basis
@@ -257,6 +278,15 @@ func _process(delta: float) -> void:
 		if _is_regen_active:
 			heal(ceili(REGEN_HPS * delta))
 
+	if _shake_trauma > 0.0:
+		if Settings.screen_shake_enabled:
+			_camera.h_offset = randf_range(-1.0, 1.0) * _shake_trauma * SHAKE_INTENSITY * Settings.screen_shake_intensity
+			_camera.v_offset = randf_range(-1.0, 1.0) * _shake_trauma * SHAKE_INTENSITY * Settings.screen_shake_intensity
+		_shake_trauma = maxf(_shake_trauma - SHAKE_DECAY * delta, 0.0)
+		if _shake_trauma <= 0.0:
+			_camera.h_offset = 0.0
+			_camera.v_offset = 0.0
+
 
 func _use_potion() -> void:
 	if _input_locked or _aim_locked or _potion_heal_amount <= 0 or _potion_cooldown_timer > 0.0:
@@ -275,6 +305,12 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		_mouse_weapon.on_parry_hit(hitter)
 		return
 
+	_shake_trauma = minf(1.0, _shake_trauma + 0.5)
+	if hitter != null and hitter is Node3D:
+		var hitter_node := hitter as Node3D
+		var dir: Vector3 = (global_position - hitter_node.global_position).normalized()
+		dir.y = 0.3
+		velocity += dir * 6.0
 	hp -= amount
 	if _has_regen:
 		_clean_time = 0.0
@@ -428,6 +464,24 @@ func _face_motion_direction(delta: float) -> void:
 
 	var target_yaw := atan2(-flat_velocity.x, -flat_velocity.z)
 	_visual.rotation.y = lerp_angle(_visual.rotation.y, target_yaw, min(14.0 * delta, 1.0))
+
+
+func _trigger_jump_stretch() -> void:
+	if _squash_tween:
+		_squash_tween.kill()
+	_visual.scale = Vector3.ONE
+	_squash_tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BOUNCE)
+	_squash_tween.tween_property(_visual, "scale", JUMP_STRETCH_SCALE, JUMP_STRETCH_DURATION * 0.4)
+	_squash_tween.tween_property(_visual, "scale", Vector3.ONE, JUMP_STRETCH_DURATION * 0.6)
+
+
+func _trigger_land_squash() -> void:
+	if _squash_tween:
+		_squash_tween.kill()
+	_visual.scale = Vector3.ONE
+	_squash_tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BOUNCE)
+	_squash_tween.tween_property(_visual, "scale", LAND_SQUASH_SCALE, LAND_SQUASH_DURATION)
+	_squash_tween.tween_property(_visual, "scale", Vector3.ONE, LAND_RECOVER_DURATION)
 
 
 func set_input_locked(is_locked: bool) -> void:

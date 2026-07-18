@@ -1,10 +1,10 @@
 extends Node
 
-enum EMusicState { CALM, TENSION, COMBAT, BOSS, SPECIAL_EVENT }
+enum EMusicState { CALM, COMBAT }
 
 signal music_state_changed(new_state: EMusicState, old_state: EMusicState)
 
-const STATE_NAMES := ["CALM", "TENSION", "COMBAT", "BOSS", "SPECIAL_EVENT"]
+const STATE_NAMES := ["CALM", "COMBAT"]
 
 var current_state: EMusicState = EMusicState.CALM
 

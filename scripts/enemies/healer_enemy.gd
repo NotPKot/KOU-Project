@@ -95,6 +95,7 @@ var _recover_timer: float = 0.0
 var _dbg: int = 0
 var _smooth_dir: Vector3 = Vector3.FORWARD
 
+var _knockback: Vector3 = Vector3.ZERO
 var _nav_map_ready: bool = false
 
 
@@ -735,8 +736,10 @@ func _remember_cover(pos: Vector3) -> void:
 
 func _physics_process(delta: float) -> void:
 	_execute_action(_current_action, delta)
+	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
+	_knockback = _knockback.move_toward(Vector3.ZERO, 50.0 * delta)
 
 
 func _apply_gravity(delta: float) -> void:
@@ -856,6 +859,10 @@ func _reset_material_colors() -> void:
 
 
 # ===================== PUBLIC API =====================
+
+func apply_knockback(direction: Vector3, force: float) -> void:
+	_knockback += direction * force
+
 
 func take_damage(amount: int) -> void:
 	hp -= amount

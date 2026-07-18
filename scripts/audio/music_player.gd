@@ -1,7 +1,9 @@
 extends Node
 
+const CALM_DIR := "res://assets/audio/music/calm/"
+const COMBAT_DIR := "res://assets/audio/music/fight/"
+
 @export var crossfade_duration: float = 2.0
-@export var fade_in_duration: float = 3.0
 
 var _channels: Array[AudioStreamPlayer] = []
 var _active_channel: int = 0
@@ -9,7 +11,6 @@ var _tween: Tween
 var _current_stream: AudioStream = null
 
 var _calm_tracks: Array[AudioStream] = []
-var _tension_tracks: Array[AudioStream] = []
 var _combat_tracks: Array[AudioStream] = []
 
 
@@ -23,71 +24,44 @@ func _ready() -> void:
 
 	MusicManager.music_state_changed.connect(_on_music_state_changed)
 
-	_load_all_tracks()
+	_calm_tracks = _load_tracks_from(CALM_DIR)
+	_combat_tracks = _load_tracks_from(COMBAT_DIR)
+
 	if not _calm_tracks.is_empty():
-		_start_calm_fade_in()
+		var stream := _calm_tracks[randi() % _calm_tracks.size()]
+		var player := _channels[0]
+		player.stream = stream
+		player.volume_db = -80.0
+		player.play()
+		var tween := create_tween()
+		tween.tween_property(player, "volume_db", 0.0, crossfade_duration)
+		_current_stream = stream
 
 
-func _load_all_tracks() -> void:
-	_calm_tracks = _load_tracks_from("res://placeholder/audio/music/chill/")
-	_tension_tracks = _load_tracks_from("res://placeholder/audio/music/tension/")
-	_combat_tracks = _load_tracks_from("res://placeholder/audio/music/fight/")
-
-
-static func _load_tracks_from(dir: String) -> Array[AudioStream]:
+func _load_tracks_from(dir: String) -> Array[AudioStream]:
 	var out: Array[AudioStream] = []
-	for entry in _get_ogg_files(dir):
-		var s := load(dir.path_join(entry)) as AudioStream
-		if s != null:
-			if s is AudioStreamOggVorbis:
-				s.loop = true
-			out.append(s)
+	var access := DirAccess.open(dir)
+	if access == null:
+		return out
+	for entry in access.get_files():
+		if not entry.ends_with(".ogg") and not entry.ends_with(".mp3") and not entry.ends_with(".wav"):
+			continue
+		var full := dir.path_join(entry)
+		var s := load(full) as AudioStream
+		if s == null:
+			continue
+		if s is AudioStreamOggVorbis or s is AudioStreamMP3:
+			s.loop = true
+		out.append(s)
 	return out
 
 
-static func _get_ogg_files(dir: String) -> PackedStringArray:
-	var known: Dictionary = {
-		"res://placeholder/audio/music/chill/": [
-			"DELTARUNE-Paradise_-Paradise-N64-Zelda-Majora_s-Mask-Style-Cover.ogg",
-		],
-		"res://placeholder/audio/music/tension/": [
-			"YTMP3GG_YouTube_Inscryption-OST-11-The-Temple-of-Beasts_Media_OlYqw4Kkvj8_006_128k.ogg",
-			"YTMP3GG_YouTube_Brutal-Orchestra-OST-The-Far-Shore-Area-_Media_20DCCVX-PGg_009_128k.ogg",
-		],
-		"res://placeholder/audio/music/fight/": [
-			"Rift-of-the-NecroDancer-OST-Matriarch-by-Jules-Conroy_1_.ogg",
-			"froghorn.exe.ogg",
-			"running-through-the-garden-without-a-car_Media_K9Pk68tPoW8_009_128k.ogg",
-		],
-	}
-	return known.get(dir, [])
-
-
-func _start_calm_fade_in() -> void:
-	var stream := _calm_tracks[randi() % _calm_tracks.size()]
-	var player := _channels[0]
-	player.stream = stream
-	player.volume_db = -80.0
-	player.play()
-
-	_tween = create_tween()
-	_tween.tween_property(player, "volume_db", 0.0, fade_in_duration)
-	_current_stream = stream
-	_active_channel = 0
-
-
 func _on_music_state_changed(new_state: MusicManager.EMusicState, _old_state: MusicManager.EMusicState) -> void:
-	_play_state(new_state)
-
-
-func _play_state(state: MusicManager.EMusicState) -> void:
 	var pool: Array[AudioStream]
-	match state:
+	match new_state:
 		MusicManager.EMusicState.CALM:
 			pool = _calm_tracks
-		MusicManager.EMusicState.TENSION:
-			pool = _tension_tracks
-		MusicManager.EMusicState.COMBAT, MusicManager.EMusicState.BOSS, MusicManager.EMusicState.SPECIAL_EVENT:
+		MusicManager.EMusicState.COMBAT:
 			pool = _combat_tracks
 
 	if pool.is_empty():

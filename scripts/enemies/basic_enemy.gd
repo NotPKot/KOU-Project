@@ -39,6 +39,7 @@ var _smooth_dir: Vector3 = Vector3.FORWARD
 var _nav_map_ready: bool = false
 var _hit_dealt: bool = false
 
+var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
 var _left_fist_material: StandardMaterial3D = null
 var _right_fist_material: StandardMaterial3D = null
@@ -192,8 +193,10 @@ func _get_body_material() -> StandardMaterial3D:
 
 func _physics_process(delta: float) -> void:
 	_set_velocity_for_state(delta)
+	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
+	_knockback = _knockback.move_toward(Vector3.ZERO, 50.0 * delta)
 
 
 func _set_velocity_for_state(delta: float) -> void:
@@ -347,6 +350,10 @@ func apply_effect(effect: StatusEffect) -> void:
 
 func has_effect(name: String) -> bool:
 	return _effects.has(name)
+
+
+func apply_knockback(direction: Vector3, force: float) -> void:
+	_knockback += direction * force
 
 
 func take_damage(amount: int) -> void:

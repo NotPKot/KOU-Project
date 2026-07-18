@@ -46,6 +46,7 @@ var _travel_progress: float = 0.0
 var _triggered_by_player: bool = false
 var _hit_dealt: bool = false
 
+var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
 
 var _vision_query: PhysicsRayQueryParameters3D = null
@@ -262,8 +263,10 @@ func _physics_process(delta: float) -> void:
 			_set_stop_velocity(delta)
 		_:
 			_set_stop_velocity(delta)
+	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
+	_knockback = _knockback.move_toward(Vector3.ZERO, 50.0 * delta)
 
 
 func _chase(delta: float) -> void:
@@ -400,6 +403,10 @@ func apply_effect(effect: StatusEffect) -> void:
 
 func has_effect(name: String) -> bool:
 	return _effects.has(name)
+
+
+func apply_knockback(direction: Vector3, force: float) -> void:
+	_knockback += direction * force
 
 
 func take_damage(amount: int) -> void:

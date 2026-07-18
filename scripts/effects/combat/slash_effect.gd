@@ -124,6 +124,34 @@ func _configure_particles() -> void:
 	_particles.emitting = true
 
 
+const IMPACT_SCENE := preload("res://scenes/effects/combat/HitImpact.tscn")
+const KNOCKBACK_FORCE: float = 5.0
+
+
 func _on_hit(body: Node) -> void:
 	if body.has_method("take_damage"):
 		body.take_damage(damage)
+
+	if body is Node3D:
+		var body_node := body as Node3D
+		var dir: Vector3 = (body_node.global_position - global_position).normalized()
+		dir.y = 0.25
+		if body.has_method("apply_knockback"):
+			body.apply_knockback(dir, KNOCKBACK_FORCE)
+
+		var impact := IMPACT_SCENE.instantiate() as Node3D
+		impact.global_position = body_node.global_position + Vector3(0, 0.8, 0)
+		get_tree().current_scene.add_child(impact)
+		var particles := impact.get_node("Particles") as GPUParticles3D
+		if particles != null:
+			particles.emitting = true
+		var flash := impact.get_node("Flash") as OmniLight3D
+		if flash != null:
+			var tween := create_tween()
+			tween.tween_property(flash, "light_energy", 0.0, 0.25)
+		var timer := Timer.new()
+		timer.wait_time = 0.5
+		timer.one_shot = true
+		impact.add_child(timer)
+		timer.start()
+		timer.timeout.connect(impact.queue_free)
