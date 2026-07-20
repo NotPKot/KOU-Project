@@ -1,6 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/healer_enemy.gd" id="1_healer_enemy"]
+[ext_resource type="Script" path="res://scripts/status_effects/status_effect_controller.gd" id="2_ctrl"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_body"]
 top_radius = 0.3
@@ -51,3 +52,6 @@ position = Vector3(0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_collision")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+
+[node name="StatusEffectController" type="Node" parent="."]
+script = ExtResource("2_ctrl")

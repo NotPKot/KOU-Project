@@ -3,7 +3,6 @@ extends Node
 
 const PARRY_DURATION: float = 1.0
 const PARRY_COOLDOWN: float = 2.0
-const STUN_EFFECT := preload("res://scripts/status_effects/stun_effect.gd")
 
 var is_parrying: bool = false
 var _player: CharacterBody3D = null
@@ -65,8 +64,7 @@ func _activate_parry() -> void:
 
 func on_parry_hit(hitter: Node) -> void:
 	if hitter != null and hitter.has_method("apply_effect"):
-		var stun := STUN_EFFECT.new(2.0)
-		hitter.apply_effect(stun)
+		hitter.apply_effect("stun", 2.0)
 
 	if _katana_mesh != null and is_instance_valid(_katana_mesh):
 		_katana_mesh.material_override.albedo_color = Color(1.0, 1.0, 1.0, 1.0)

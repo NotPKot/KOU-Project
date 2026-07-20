@@ -1,5 +1,9 @@
 extends Area3D
 
+signal combat_started
+signal wave_changed(wave: int)
+signal combat_ended
+
 enum Role { PRESSURE, CONTROL, SUPPORT }
 
 class EnemyData:
@@ -19,17 +23,22 @@ class EnemyData:
 @export var spawn_radius: float = 8.0
 @export var spawn_min_distance: float = 3.0
 
-@export_group("Budget")
+@export_group("Waves")
+@export var wave_interval: float = 15.0
 @export var budget_start: int = 4
-@export var budget_max: int = 8
-@export var budget_ramp: float = 60.0
+@export var budget_per_wave: int = 5
 
-@export_group("Roles")
-@export var max_pressure: int = 3
+@export_group("Roles Base")
+@export var base_max_pressure: int = 3
+@export var base_max_control: int = 2
+@export var base_max_support: int = 1
 @export var min_pressure: int = 1
-@export var max_control: int = 2
-@export var max_support: int = 1
 @export var min_offensive_for_support: int = 2
+
+@export_group("Role Scaling (per N waves)")
+@export var pressure_scale_interval: int = 3
+@export var control_scale_interval: int = 4
+@export var support_scale_interval: int = 5
 
 @export_group("Audio")
 @export var slash_sfx: AudioStream
@@ -38,6 +47,7 @@ var _activated: bool = false
 var _elapsed: float = 0.0
 var _spawn_timer: float = 0.0
 var _alive_entries: Array[Dictionary] = []
+var _current_wave: int = 1
 
 var _enemies: Array[EnemyData] = []
 
@@ -48,6 +58,7 @@ func _ready() -> void:
 		EnemyData.new(preload("res://scenes/enemies/CalmyrEnemy.tscn"), Role.CONTROL, 2, 25, "Calmyr"),
 		EnemyData.new(preload("res://scenes/enemies/HealerEnemy.tscn"), Role.SUPPORT,    2, 15, "Healer"),
 	]
+	add_to_group("combat_button")
 	body_entered.connect(_on_body_entered)
 
 
@@ -64,8 +75,10 @@ func activate() -> void:
 		return
 	_activated = true
 	_spawn_timer = 1.0
+	_current_wave = 1
 	_play_slash()
 	MusicManager.set_state(MusicManager.EMusicState.COMBAT)
+	combat_started.emit()
 
 
 func _play_slash() -> void:
@@ -85,8 +98,19 @@ func _get_spawn_interval() -> float:
 
 
 func _get_budget() -> int:
-	var t := minf(_elapsed / budget_ramp, 1.0)
-	return roundi(lerpf(float(budget_start), float(budget_max), t))
+	return budget_start + (_current_wave - 1) * budget_per_wave
+
+
+func _get_max_pressure() -> int:
+	return base_max_pressure + int(float(_current_wave - 1) / pressure_scale_interval)
+
+
+func _get_max_control() -> int:
+	return base_max_control + int(float(_current_wave - 1) / control_scale_interval)
+
+
+func _get_max_support() -> int:
+	return base_max_support + int(float(_current_wave - 1) / support_scale_interval)
 
 
 func _count_role(role: Role) -> int:
@@ -104,11 +128,11 @@ func _total_offensive() -> int:
 func _can_spawn(ed: EnemyData) -> bool:
 	match ed.role:
 		Role.PRESSURE:
-			return _count_role(Role.PRESSURE) < max_pressure
+			return _count_role(Role.PRESSURE) < _get_max_pressure()
 		Role.CONTROL:
-			return _count_role(Role.CONTROL) < max_control and _count_role(Role.PRESSURE) >= min_pressure
+			return _count_role(Role.CONTROL) < _get_max_control() and _count_role(Role.PRESSURE) >= min_pressure
 		Role.SUPPORT:
-			return _count_role(Role.SUPPORT) < max_support and _total_offensive() >= min_offensive_for_support
+			return _count_role(Role.SUPPORT) < _get_max_support() and _total_offensive() >= min_offensive_for_support
 	return true
 
 
@@ -148,8 +172,8 @@ func _place_enemy(ed: EnemyData) -> void:
 	var enemy := ed.scene.instantiate()
 	var angle := randf() * TAU
 	var dist := spawn_min_distance + randf() * (spawn_radius - spawn_min_distance)
-	enemy.global_position = global_position + Vector3(cos(angle), 0.0, sin(angle)) * dist
 	get_tree().current_scene.add_child(enemy)
+	enemy.global_position = global_position + Vector3(cos(angle), 0.0, sin(angle)) * dist
 	if enemy.has_method("set_target"):
 		var player := get_tree().get_first_node_in_group("player")
 		if player != null:
@@ -163,7 +187,17 @@ func _process(delta: float) -> void:
 
 	_elapsed += delta
 
+	var new_wave := int(_elapsed / wave_interval) + 1
+	if new_wave != _current_wave:
+		_current_wave = new_wave
+		wave_changed.emit(_current_wave)
+
 	_alive_entries = _alive_entries.filter(func(d): return is_instance_valid(d.node))
+
+	if _alive_entries.is_empty() and _current_wave > 1:
+		combat_ended.emit()
+		_activated = false
+		return
 
 	_spawn_timer -= delta
 	if _spawn_timer > 0.0:

@@ -12,7 +12,6 @@ var is_dashing: bool = false
 var _player: CharacterBody3D = null
 var _timer: float = 0.0
 var _cool_timer: float = 0.0
-var _direction: Vector3 = Vector3.ZERO
 
 
 func setup(player: CharacterBody3D) -> void:
@@ -23,12 +22,15 @@ func fire(camera_forward: Vector3) -> void:
 	if _cool_timer > 0.0 or is_dashing or _player == null:
 		return
 
-	_direction = camera_forward
-	_direction.y = 0.0
-	if _direction.length_squared() < 0.001:
-		_direction = -_player.global_transform.basis.z
-		_direction.y = 0.0
-	_direction = _direction.normalized()
+	var dir := camera_forward
+	dir.y = 0.0
+	if dir.length_squared() < 0.001:
+		dir = -_player.global_transform.basis.z
+		dir.y = 0.0
+	dir = dir.normalized()
+
+	_player.velocity = dir * dash_speed
+	_player.velocity.y = 0.0
 
 	is_dashing = true
 	_timer = dash_duration
@@ -37,21 +39,9 @@ func fire(camera_forward: Vector3) -> void:
 
 func _process(delta: float) -> void:
 	_cool_timer = maxf(_cool_timer - delta, 0.0)
-
-
-func physics_tick(delta: float) -> bool:
-	if not is_dashing or _player == null:
-		return false
-
-	_timer -= delta
-	if _timer <= 0.0:
-		is_dashing = false
-		_player.velocity.x = 0.0
-		_player.velocity.z = 0.0
-		dash_ended.emit()
-		_cool_timer = cooldown
-		return false
-
-	_player.velocity.x = _direction.x * dash_speed
-	_player.velocity.z = _direction.z * dash_speed
-	return true
+	if is_dashing:
+		_timer -= delta
+		if _timer <= 0.0:
+			is_dashing = false
+			_cool_timer = cooldown
+			dash_ended.emit()

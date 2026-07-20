@@ -47,8 +47,6 @@ var _last_seen_time: float = -999.0
 var _vision_query: PhysicsRayQueryParameters3D = null
 var _cover_query: PhysicsRayQueryParameters3D = null
 
-var _effects: Dictionary = {}
-
 var _cover_target: Vector3 = Vector3.ZERO
 var _cover_recalc_cooldown: float = 0.0
 const COVER_RECALC_INTERVAL: float = 0.3
@@ -76,6 +74,7 @@ var _head_base_color: Color
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _head_mesh: MeshInstance3D = $Visual/Head
 @onready var _nav_agent: NavigationAgent3D = $NavigationAgent3D
+@onready var _status: StatusEffectController = $StatusEffectController
 
 enum GoapActionId { HEAL_ALLY, FLEE, RECOVER, WINDED, IDLE }
 enum FleeExit { NONE, REAL_COVER, SPRINT_TIMEOUT }
@@ -92,7 +91,6 @@ var _winded_timer: float = 0.0
 @export var safe_distance_fallback: float = 10.0
 
 var _recover_timer: float = 0.0
-var _dbg: int = 0
 var _smooth_dir: Vector3 = Vector3.FORWARD
 
 var _knockback: Vector3 = Vector3.ZERO
@@ -134,23 +132,9 @@ func _ready() -> void:
 # ===================== _PROCESS =====================
 
 func _process(delta: float) -> void:
-	_process_effects(delta)
 	_update_tension(delta)
 	_tick_timers(delta)
 	_evaluate_goap(delta)
-
-
-# --- _process_effects ---
-
-func _process_effects(delta: float) -> void:
-	var expired: Array[String] = []
-	for key in _effects:
-		var e: StatusEffect = _effects[key]
-		if e.tick(delta):
-			expired.append(key)
-			e.remove()
-	for key in expired:
-		_effects.erase(key)
 
 
 func set_target(p: Node3D) -> void:
@@ -735,7 +719,10 @@ func _remember_cover(pos: Vector3) -> void:
 # ===================== _PHYSICS_PROCESS =====================
 
 func _physics_process(delta: float) -> void:
-	_execute_action(_current_action, delta)
+	if _status.is_stunned:
+		_stand_still(delta)
+	else:
+		_execute_action(_current_action, delta)
 	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
@@ -882,13 +869,5 @@ func _modulate_damage() -> void:
 	_head_material.albedo_color = _head_base_color
 
 
-func apply_effect(effect: StatusEffect) -> void:
-	if _effects.has(effect.effect_name):
-		_effects[effect.effect_name].remaining = effect.duration
-		return
-	effect.apply(self)
-	_effects[effect.effect_name] = effect
-
-
-func has_effect(effect_name: String) -> bool:
-	return _effects.has(effect_name)
+func apply_effect(effect_name: String, duration: float, value: float = 1.0) -> void:
+	_status.apply_effect(effect_name, duration, value)

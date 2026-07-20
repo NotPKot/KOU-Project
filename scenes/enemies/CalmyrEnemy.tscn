@@ -1,6 +1,7 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/calmyr_enemy.gd" id="1_calmyr"]
+[ext_resource type="Script" path="res://scripts/status_effects/status_effect_controller.gd" id="2_ctrl"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(1.0, 1.4, 0.8)
@@ -68,3 +69,6 @@ material_override = SubResource("StandardMaterial3D_line")
 visible = false
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+
+[node name="StatusEffectController" type="Node" parent="."]
+script = ExtResource("2_ctrl")

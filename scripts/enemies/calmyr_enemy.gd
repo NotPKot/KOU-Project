@@ -37,7 +37,6 @@ var _state: State = State.CHASE
 var _state_elapsed: float = 0.0
 var _can_see_cache: bool = false
 var _can_see_frame: int = -1
-var _effects: Dictionary = {}
 var _smooth_dir: Vector3 = Vector3.FORWARD
 
 var _origin: Vector3 = Vector3.ZERO
@@ -55,8 +54,8 @@ var _vision_query: PhysicsRayQueryParameters3D = null
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _indicator: MeshInstance3D = $Indicator
 @onready var _direction_line: MeshInstance3D = $DirectionLine
-@onready var _collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var _nav_agent: NavigationAgent3D = $NavigationAgent3D
+@onready var _status: StatusEffectController = $StatusEffectController
 
 
 func _ready() -> void:
@@ -81,20 +80,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_process_effects(delta)
 	_update_fsm(delta)
 	_state_elapsed += delta
-
-
-func _process_effects(delta: float) -> void:
-	var expired: Array[String] = []
-	for name in _effects:
-		var e: StatusEffect = _effects[name]
-		if e.tick(delta):
-			expired.append(name)
-			e.remove()
-	for name in expired:
-		_effects.erase(name)
 
 
 func _update_fsm(delta: float) -> void:
@@ -256,13 +243,16 @@ func _set_collision_enabled(enabled: bool) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	match _state:
-		State.CHASE:
-			_chase(delta)
-		State.RECOVERY:
-			_set_stop_velocity(delta)
-		_:
-			_set_stop_velocity(delta)
+	if _status.is_stunned:
+		_set_stop_velocity(delta)
+	else:
+		match _state:
+			State.CHASE:
+				_chase(delta)
+			State.RECOVERY:
+				_set_stop_velocity(delta)
+			_:
+				_set_stop_velocity(delta)
 	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
@@ -277,13 +267,13 @@ func _chase(delta: float) -> void:
 	_nav_agent.target_position = _target.global_position
 
 	if _nav_agent.is_navigation_finished():
-		var dir := (_target.global_position - global_position)
-		dir.y = 0.0
-		if dir.length_squared() > 0.001:
-			dir = dir.normalized()
-			velocity.x = move_toward(velocity.x, dir.x * walk_speed, acceleration * delta)
-			velocity.z = move_toward(velocity.z, dir.z * walk_speed, acceleration * delta)
-			_visual.look_at(global_position + dir, Vector3.UP)
+		var t_dir := (_target.global_position - global_position)
+		t_dir.y = 0.0
+		if t_dir.length_squared() > 0.001:
+			t_dir = t_dir.normalized()
+			velocity.x = move_toward(velocity.x, t_dir.x * walk_speed, acceleration * delta)
+			velocity.z = move_toward(velocity.z, t_dir.z * walk_speed, acceleration * delta)
+			_visual.look_at(global_position + t_dir, Vector3.UP)
 		else:
 			_set_stop_velocity(delta)
 		return
@@ -393,16 +383,8 @@ func _on_nav_map_changed(map_rid: RID) -> void:
 		pass
 
 
-func apply_effect(effect: StatusEffect) -> void:
-	if _effects.has(effect.effect_name):
-		_effects[effect.effect_name].remaining = effect.duration
-		return
-	effect.apply(self)
-	_effects[effect.effect_name] = effect
-
-
-func has_effect(name: String) -> bool:
-	return _effects.has(name)
+func apply_effect(effect_name: String, duration: float, value: float = 1.0) -> void:
+	_status.apply_effect(effect_name, duration, value)
 
 
 func apply_knockback(direction: Vector3, force: float) -> void:

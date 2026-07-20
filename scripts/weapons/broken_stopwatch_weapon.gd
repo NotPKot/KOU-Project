@@ -274,7 +274,7 @@ func _apply_rift_effect(rift_id: StringName) -> void:
 			print("Cronometro Roto: ejecutar Sobrecarga Cinetica.")
 
 
-func _close_rift(successful_cast: bool) -> void:
+func _close_rift(_successful_cast: bool) -> void:
 	_rift_open = false
 	Engine.time_scale = 1.0
 	Input.set_mouse_mode(_mouse_mode_before_rift)

@@ -5,7 +5,7 @@ signal teleported(position: Vector3)
 signal cancelled
 
 @export var max_distance: float = 30.0
-@export var cooldown: float = 8.0
+@export var cooldown: float = 4.0
 @export var player_capsule_radius: float = 0.4
 @export var player_capsule_height: float = 1.8
 @export var player_origin_y_offset: float = 0.0

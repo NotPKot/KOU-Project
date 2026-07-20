@@ -107,20 +107,22 @@ func _draw() -> void:
 	draw_rect(Rect2(2, 2, iw, ih), bg_color)
 
 	var divider_color = bar_color.darkened(0.35)
-	var num_groups = _max_hp / divider_step
+	var num_groups = float(_max_hp) / divider_step
+	var tx := 0.0
+
 	for idx in range(1, num_groups):
 		var dx = 2 + (float(idx * divider_step) / _max_hp) * iw
 		draw_line(Vector2(dx, 2), Vector2(dx, h - 2), divider_color, 1.0)
 
 	for c in _chunks:
-		var cx = 2 + (c.value / _max_hp) * iw
-		var tx = 2 + (float(_hp_target) / _max_hp) * iw
+		var cx = 2 + (float(c.value) / _max_hp) * iw
+		tx = 2 + (float(_hp_target) / _max_hp) * iw
 		var cw = maxf(2.0, cx - tx)
 		draw_rect(Rect2(tx, 2, cw, ih), chunk_color)
 
 	if _hp_shown > _hp_target:
 		var sx = 2 + (_hp_shown / _max_hp) * iw
-		var tx = 2 + (float(_hp_target) / _max_hp) * iw
+		tx = 2 + (float(_hp_target) / _max_hp) * iw
 		draw_rect(Rect2(tx, 2, sx - tx, ih), drain_color)
 
 	var fw = (_hp_shown / _max_hp) * iw
@@ -130,7 +132,7 @@ func _draw() -> void:
 	var ts = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size)
 	var ascent = _font.get_ascent(_font_size)
 	var descent = _font.get_descent(_font_size)
-	var tx = (w - ts.x) * 0.5
+	tx = (w - ts.x) * 0.5
 	var ty = h * 0.5 + (ascent - descent) * 0.5
 
 	draw_string(_font, Vector2(tx + 1, ty + 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size, Color(0, 0, 0, 0.6))

@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(60, 60)
+size = Vector2(200, 200)
 subdivide_width = 1
 subdivide_depth = 1
 
@@ -26,12 +26,12 @@ func _ready():
 	var tex := ImageTexture.create_from_image(img)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(60.0, 60.0, 1.0)
+	mat.uv1_scale = Vector3(200.0, 200.0, 1.0)
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	material_override = mat"
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(60, 0.2, 60)
+size = Vector3(200, 0.2, 200)
 
 [sub_resource type="BoxMesh" id="BoxMesh_origin_marker"]
 size = Vector3(0.25, 0.04, 0.25)

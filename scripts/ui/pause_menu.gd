@@ -1,8 +1,6 @@
 extends CanvasLayer
 
 @onready var _resume_btn: Button = %ResumeBtn
-@onready var _options_btn: Button = %OptionsBtn
-@onready var _menu_btn: Button = %MenuBtn
 
 
 func _ready() -> void:

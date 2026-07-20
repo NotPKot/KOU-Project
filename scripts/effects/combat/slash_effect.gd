@@ -140,8 +140,8 @@ func _on_hit(body: Node) -> void:
 			body.apply_knockback(dir, KNOCKBACK_FORCE)
 
 		var impact := IMPACT_SCENE.instantiate() as Node3D
-		impact.global_position = body_node.global_position + Vector3(0, 0.8, 0)
 		get_tree().current_scene.add_child(impact)
+		impact.global_position = body_node.global_position + Vector3(0, 0.8, 0)
 		var particles := impact.get_node("Particles") as GPUParticles3D
 		if particles != null:
 			particles.emitting = true

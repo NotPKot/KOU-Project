@@ -73,19 +73,19 @@ func _draw_sector(direction: String, points: PackedVector2Array, base_color: Col
 	draw_colored_polygon(points, color)
 
 
-func _draw_arrow(text: String, position: Vector2) -> void:
+func _draw_arrow(text: String, p_position: Vector2) -> void:
 	var text_size: Vector2 = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _arrow_font_size)
 	var color: Color = Color(0.88, 0.96, 1.0, 1.0)
-	draw_string(_font, position - text_size * 0.5, text, HORIZONTAL_ALIGNMENT_LEFT, -1, _arrow_font_size, color)
+	draw_string(_font, p_position - text_size * 0.5, text, HORIZONTAL_ALIGNMENT_LEFT, -1, _arrow_font_size, color)
 
 
-func _draw_sequence(position: Vector2) -> void:
+func _draw_sequence(p_position: Vector2) -> void:
 	var text: String = _sequence_to_arrows(selected_sequence)
 	if text.is_empty():
 		text = "RIFT"
 
 	var text_size: Vector2 = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _seq_font_size)
-	draw_string(_font, position - Vector2(text_size.x * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _seq_font_size, Color(0.7, 0.95, 1.0, 1.0))
+	draw_string(_font, p_position - Vector2(text_size.x * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _seq_font_size, Color(0.7, 0.95, 1.0, 1.0))
 
 
 func _sequence_to_arrows(sequence: PackedStringArray) -> String:

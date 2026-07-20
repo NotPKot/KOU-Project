@@ -179,13 +179,11 @@ func _physics_process(delta: float) -> void:
 	if _hook != null:
 		_hook.set_input(input_vector)
 
-	if _dash != null and _dash.physics_tick(delta):
-		_finish_special_motion(delta, true)
+	if _dash != null and _dash.is_dashing:
+		input_vector = Vector2.ZERO
 		if _teleport != null and _teleport.is_charging:
 			var cam_basis: Basis = _camera.global_transform.basis
 			_teleport.update_aim(_camera.global_position, -cam_basis.z)
-		_was_on_floor = is_on_floor()
-		return
 
 	if _hook != null and _hook.is_attached:
 		if Input.is_action_just_pressed("ui_accept"):
@@ -219,6 +217,8 @@ func _physics_process(delta: float) -> void:
 			velocity.y = jump_velocity
 			_jump_held = true
 			_trigger_jump_stretch()
+		elif _dash != null and _dash.is_dashing:
+			pass
 		else:
 			_apply_ground_friction(delta)
 			if not wish_dir.is_zero_approx():
@@ -229,7 +229,9 @@ func _physics_process(delta: float) -> void:
 
 	elif on_steep_wall:
 		apply_acceleration(wish_dir, air_max_speed, current_air_accel, delta)
-		var wall_drag: float = clampf(1.0 - wall_friction * delta, 0.0, 1.0)
+		var wall_drag: float = 1.0
+		if not (_dash != null and _dash.is_dashing):
+			wall_drag = clampf(1.0 - wall_friction * delta, 0.0, 1.0)
 		velocity.x *= wall_drag
 		velocity.z *= wall_drag
 		_projected_gravity(delta, wall_normal, slide_gravity_multiplier)
@@ -446,9 +448,9 @@ func _get_camera_relative_direction(input_vector: Vector2) -> Vector3:
 	if input_vector.is_zero_approx():
 		return Vector3.ZERO
 
-	var basis := _camera_pivot.global_transform.basis
-	var forward := -basis.z
-	var right := basis.x
+	var cam_basis := _camera_pivot.global_transform.basis
+	var forward := -cam_basis.z
+	var right := cam_basis.x
 	forward.y = 0.0
 	right.y = 0.0
 	forward = forward.normalized()
