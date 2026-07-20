@@ -6,17 +6,23 @@ extends Control
 
 var _elapsed: float = 0.0
 var _wave: int = 1
-var _wave_interval: float = 15.0
 var _visible: bool = false
+var _button: Node = null
 
 
 func _ready() -> void:
 	hide()
-	var button := get_tree().get_first_node_in_group("combat_button")
-	if button != null and button.has_signal("combat_started"):
-		button.combat_started.connect(_on_combat_started)
-		button.wave_changed.connect(_on_wave_changed)
-		button.combat_ended.connect(_on_combat_ended)
+	call_deferred("_connect_combat_button")
+
+
+func _connect_combat_button() -> void:
+	_button = get_tree().get_first_node_in_group("combat_button")
+	if _button == null:
+		return
+	if _button.has_signal("combat_started"):
+		_button.combat_started.connect(_on_combat_started)
+		_button.wave_changed.connect(_on_wave_changed)
+		_button.combat_ended.connect(_on_combat_ended)
 
 
 func _on_combat_started() -> void:
@@ -29,6 +35,7 @@ func _on_combat_started() -> void:
 
 func _on_wave_changed(wave: int) -> void:
 	_wave = wave
+	_update_display()
 
 
 func _on_combat_ended() -> void:
@@ -47,9 +54,11 @@ func _update_display() -> void:
 	if wave_label != null:
 		wave_label.text = "WAVE " + str(_wave)
 
-	if progress_bar != null:
-		var progress := fmod(_elapsed, _wave_interval) / _wave_interval
-		progress_bar.value = progress * progress_bar.max_value
+	if progress_bar != null and _button != null:
+		if _button.has_method("is_in_intermission") and _button.is_in_intermission():
+			progress_bar.value = progress_bar.max_value
+		elif _button.has_method("get_wave_progress"):
+			progress_bar.value = _button.get_wave_progress() * progress_bar.max_value
 
 	if time_label != null:
 		var total := int(_elapsed)

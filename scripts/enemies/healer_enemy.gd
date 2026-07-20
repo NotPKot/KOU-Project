@@ -1,6 +1,8 @@
 extends CharacterBody3D
 
-@export var walk_speed: float = 2.5
+@export var walk_speed: float = 8.0
+@export var turn_rate: float = 4.0
+@export var min_speed_mult: float = 0.15
 @export var acceleration: float = 12.0
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
@@ -762,10 +764,11 @@ func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 			blended = dir
 		else:
 			blended = blended.normalized()
-		var turn_rate := 4.0
 		_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
-		velocity.x = _smooth_dir.x * speed
-		velocity.z = _smooth_dir.z * speed
+		var alignment := _smooth_dir.dot(blended)
+		var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
+		velocity.x = _smooth_dir.x * speed * speed_mult
+		velocity.z = _smooth_dir.z * speed * speed_mult
 		_visual_node.look_at(global_position + _smooth_dir, Vector3.UP)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta)

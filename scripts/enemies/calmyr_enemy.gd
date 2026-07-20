@@ -3,9 +3,20 @@ extends CharacterBody3D
 enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 
 @export_group("Movement")
-@export var walk_speed: float = 3.5
+@export var walk_speed: float = 8.0
 @export var acceleration: float = 10.0
 @export var travel_speed: float = 6.0
+@export var turn_rate: float = 4.0
+@export var min_speed_mult: float = 0.15
+
+@export_group("Crowd Steering")
+@export var approach_offset_radius: float = 2.0
+@export var ally_separation_radius: float = 2.2
+@export var ally_separation_weight: float = 2.0
+
+@export_group("Pursuit Boost")
+@export var pursuit_boost_rate: float = 0.025
+@export var pursuit_boost_max: float = 3.0
 
 @export_group("Dash")
 @export var fixed_dash_distance: float = 16.0
@@ -44,6 +55,7 @@ var _destination: Vector3 = Vector3.ZERO
 var _travel_progress: float = 0.0
 var _triggered_by_player: bool = false
 var _hit_dealt: bool = false
+var _approach_angle: float = 0.0
 
 var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
@@ -61,6 +73,7 @@ var _vision_query: PhysicsRayQueryParameters3D = null
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
+	_approach_angle = fposmod(float(get_instance_id() % 10000) * 2.3999632, TAU)
 
 	NavigationServer3D.map_changed.connect(_on_nav_map_changed)
 
@@ -139,7 +152,7 @@ func _update_fsm(delta: float) -> void:
 
 func _calculate_destination() -> void:
 	_origin = global_position
-	var dir := (_target.global_position - _origin)
+	var dir := (_get_approach_target() - _origin)
 	dir.y = 0.0
 	if dir.length_squared() < 0.001:
 		dir = Vector3.FORWARD
@@ -264,16 +277,14 @@ func _chase(delta: float) -> void:
 		_set_stop_velocity(delta)
 		return
 
-	_nav_agent.target_position = _target.global_position
+	var approach_target := _get_approach_target()
+	_nav_agent.target_position = approach_target
 
 	if _nav_agent.is_navigation_finished():
-		var t_dir := (_target.global_position - global_position)
+		var t_dir := approach_target - global_position
 		t_dir.y = 0.0
 		if t_dir.length_squared() > 0.001:
-			t_dir = t_dir.normalized()
-			velocity.x = move_toward(velocity.x, t_dir.x * walk_speed, acceleration * delta)
-			velocity.z = move_toward(velocity.z, t_dir.z * walk_speed, acceleration * delta)
-			_visual.look_at(global_position + t_dir, Vector3.UP)
+			_move_in_chase_direction(t_dir.normalized(), delta)
 		else:
 			_set_stop_velocity(delta)
 		return
@@ -284,23 +295,46 @@ func _chase(delta: float) -> void:
 
 	if dir.length_squared() > 0.001:
 		dir = dir.normalized()
-		if is_on_wall():
-			var wall_n := get_wall_normal()
-			var along := wall_n.cross(Vector3.UP).normalized()
-			dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
-		var avoid := _avoid_allies(2.0)
-		var blended := dir + avoid * 3.0
-		if blended.length_squared() > 0.001:
-			blended = blended.normalized()
-		else:
-			blended = dir
-		var turn_rate := 4.0
-		_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
-		velocity.x = _smooth_dir.x * walk_speed
-		velocity.z = _smooth_dir.z * walk_speed
-		_visual.look_at(global_position + _smooth_dir, Vector3.UP)
+		_move_in_chase_direction(dir, delta)
 	else:
 		_set_stop_velocity(delta)
+
+
+func _move_in_chase_direction(dir: Vector3, delta: float) -> void:
+	if is_on_wall():
+		var wall_n := get_wall_normal()
+		var along := wall_n.cross(Vector3.UP).normalized()
+		dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
+
+	var blended := dir + _avoid_allies(ally_separation_radius) * ally_separation_weight
+	if blended.length_squared() > 0.001:
+		blended = blended.normalized()
+	else:
+		blended = dir
+
+	var speed := _get_pursuit_speed()
+	_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
+	var alignment := _smooth_dir.dot(blended)
+	var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
+	velocity.x = _smooth_dir.x * speed * speed_mult
+	velocity.z = _smooth_dir.z * speed * speed_mult
+	_visual.look_at(global_position + _smooth_dir, Vector3.UP)
+
+
+func _get_pursuit_speed() -> float:
+	if _target == null:
+		return walk_speed
+	var dist := global_position.distance_to(_target.global_position)
+	var boost := 1.0 + dist * pursuit_boost_rate
+	return walk_speed * minf(boost, pursuit_boost_max)
+
+
+func _get_approach_target() -> Vector3:
+	if _target == null:
+		return global_position
+
+	var ring_offset := Vector3(cos(_approach_angle), 0.0, sin(_approach_angle)) * approach_offset_radius
+	return _target.global_position + ring_offset
 
 
 func _set_stop_velocity(delta: float) -> void:
@@ -324,8 +358,11 @@ func _avoid_allies(min_dist: float) -> Vector3:
 		var offset: Vector3 = global_position - e.global_position
 		offset.y = 0.0
 		var dist: float = offset.length()
-		if dist < min_dist and dist > 0.01:
-			var strength: float = (min_dist - dist) / min_dist
+		if dist < min_dist:
+			if dist <= 0.01:
+				offset = Vector3(cos(_approach_angle), 0.0, sin(_approach_angle))
+				dist = 0.01
+			var strength: float = pow((min_dist - dist) / min_dist, 2.0)
 			result += offset.normalized() * strength
 	return result
 

@@ -12,13 +12,21 @@ var _current_stream: AudioStream = null
 
 var _calm_tracks: Array[AudioStream] = []
 var _combat_tracks: Array[AudioStream] = []
+var _muffled_effect: AudioEffectLowPassFilter
+
+const MUSIC_BUS := "Music"
+const MUFFLED_CUTOFF: float = 600.0
+const FULL_CUTOFF: float = 22000.0
 
 
 func _ready() -> void:
+	_setup_music_bus()
+
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.name = "Channel" + str(i)
 		p.volume_db = -80.0
+		p.bus = MUSIC_BUS
 		add_child(p)
 		_channels.append(p)
 
@@ -36,6 +44,32 @@ func _ready() -> void:
 		var tween := create_tween()
 		tween.tween_property(player, "volume_db", 0.0, crossfade_duration)
 		_current_stream = stream
+
+
+func _setup_music_bus() -> void:
+	var bus_idx := AudioServer.get_bus_index(MUSIC_BUS)
+	if bus_idx == -1:
+		AudioServer.add_bus()
+		bus_idx = AudioServer.get_bus_count() - 1
+		AudioServer.set_bus_name(bus_idx, MUSIC_BUS)
+
+	var effect := AudioEffectLowPassFilter.new()
+	effect.cutoff_hz = FULL_CUTOFF
+	effect.resonance = 0.3
+	AudioServer.add_bus_effect(bus_idx, effect, 0)
+	_muffled_effect = effect
+
+
+func set_muffled(muffled: bool) -> void:
+	if _muffled_effect == null:
+		return
+	var target := MUFFLED_CUTOFF if muffled else FULL_CUTOFF
+	if is_inside_tree():
+		var tween := create_tween()
+		tween.set_trans(Tween.TRANS_SINE)
+		tween.tween_property(_muffled_effect, "cutoff_hz", target, 0.35)
+	else:
+		_muffled_effect.cutoff_hz = target
 
 
 func _load_tracks_from(dir: String) -> Array[AudioStream]:

@@ -82,9 +82,12 @@ var _movement_debug_timer: float = 0.0
 const CLEAN_TIME_THRESHOLD: float = 1.8
 const REGEN_HPS: float = 16.0
 var _parry_window: float = 0.0
-var _shake_trauma: float = 0.0
-const SHAKE_DECAY: float = 8.0
-const SHAKE_INTENSITY: float = 6.0
+var _shake_offset: Vector2 = Vector2.ZERO
+var _shake_velocity: Vector2 = Vector2.ZERO
+const SHAKE_IMPULSE: float = 9.0
+const SHAKE_SPRING: float = 180.0
+const SHAKE_DAMPING: float = 24.0
+const SHAKE_MAX_OFFSET: float = 0.18
 
 var _was_on_floor: bool = true
 var _squash_tween: Tween = null
@@ -280,14 +283,7 @@ func _process(delta: float) -> void:
 		if _is_regen_active:
 			heal(ceili(REGEN_HPS * delta))
 
-	if _shake_trauma > 0.0:
-		if Settings.screen_shake_enabled:
-			_camera.h_offset = randf_range(-1.0, 1.0) * _shake_trauma * SHAKE_INTENSITY * Settings.screen_shake_intensity
-			_camera.v_offset = randf_range(-1.0, 1.0) * _shake_trauma * SHAKE_INTENSITY * Settings.screen_shake_intensity
-		_shake_trauma = maxf(_shake_trauma - SHAKE_DECAY * delta, 0.0)
-		if _shake_trauma <= 0.0:
-			_camera.h_offset = 0.0
-			_camera.v_offset = 0.0
+	_update_screen_shake(delta)
 
 
 func _use_potion() -> void:
@@ -307,7 +303,7 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		_mouse_weapon.on_parry_hit(hitter)
 		return
 
-	_shake_trauma = minf(1.0, _shake_trauma + 0.5)
+	_trigger_hit_shake(hitter)
 	if hitter != null and hitter is Node3D:
 		var hitter_node := hitter as Node3D
 		var dir: Vector3 = (global_position - hitter_node.global_position).normalized()
@@ -319,6 +315,56 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		_is_regen_active = false
 	if hp <= 0:
 		die()
+
+
+func _trigger_hit_shake(hitter: Node) -> void:
+	if not Settings.screen_shake_enabled:
+		return
+
+	var screen_direction := Vector2(0.0, 0.35)
+	if hitter is Node3D:
+		var impact_direction: Vector3 = global_position - (hitter as Node3D).global_position
+		if impact_direction.length_squared() > 0.0001:
+			impact_direction = impact_direction.normalized()
+			var camera_basis := _camera.global_transform.basis
+			screen_direction = Vector2(
+				impact_direction.dot(camera_basis.x),
+				impact_direction.dot(camera_basis.y) + 0.25
+			)
+
+	if screen_direction.length_squared() > 0.0001:
+		screen_direction = screen_direction.normalized()
+
+	_shake_velocity += screen_direction * SHAKE_IMPULSE * Settings.screen_shake_intensity
+	_shake_velocity = _shake_velocity.limit_length(SHAKE_IMPULSE * 1.5 * Settings.screen_shake_intensity)
+
+
+func _update_screen_shake(delta: float) -> void:
+	if not Settings.screen_shake_enabled:
+		_shake_offset = Vector2.ZERO
+		_shake_velocity = Vector2.ZERO
+		_camera.h_offset = 0.0
+		_camera.v_offset = 0.0
+		return
+
+	if _shake_offset.is_zero_approx() and _shake_velocity.is_zero_approx():
+		return
+
+	# Resorte amortiguado: genera un golpe corto y continuo, en vez de saltar
+	# entre posiciones aleatorias cada frame.
+	_shake_velocity += -_shake_offset * SHAKE_SPRING * delta
+	_shake_velocity *= exp(-SHAKE_DAMPING * delta)
+	_shake_offset += _shake_velocity * delta
+	_shake_offset = _shake_offset.limit_length(SHAKE_MAX_OFFSET)
+
+	_camera.h_offset = _shake_offset.x
+	_camera.v_offset = _shake_offset.y
+
+	if _shake_offset.length_squared() < 0.000001 and _shake_velocity.length_squared() < 0.0001:
+		_shake_offset = Vector2.ZERO
+		_shake_velocity = Vector2.ZERO
+		_camera.h_offset = 0.0
+		_camera.v_offset = 0.0
 
 
 func die() -> void:

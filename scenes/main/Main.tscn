@@ -18,6 +18,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/DeathScreen.tscn" id="17_death_screen"]
 [ext_resource type="PackedScene" path="res://scenes/triggers/VoidHurtbox.tscn" id="18_void_hurtbox"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WaveMeter.tscn" id="19_wave_meter"]
+[ext_resource type="PackedScene" path="res://scenes/ui/AlertaOleada.tscn" id="20_alerta"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -136,6 +137,8 @@ offset_right = 20.0
 offset_bottom = 20.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="AlertaOleada" parent="HUD" instance=ExtResource("20_alerta")]
 
 [node name="PauseMenu" parent="." unique_id=708856309 instance=ExtResource("10_pause_menu")]
 

@@ -23,6 +23,7 @@ func _toggle_pause() -> void:
 	get_tree().paused = paused
 	visible = paused
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if paused else Input.MOUSE_MODE_CAPTURED)
+	MusicPlayer.set_muffled(paused)
 
 
 func _on_resume_pressed() -> void:

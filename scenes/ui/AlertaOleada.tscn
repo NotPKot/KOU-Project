@@ -1,0 +1,53 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/alerta_oleada.gd" id="1_alerta"]
+[ext_resource type="FontFile" path="res://assets/fonts/JetBrainsMono-Bold.ttf" id="2_font"]
+
+[node name="AlertaOleada" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_alerta")
+
+[node name="Tinte" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.5, 0.5, 0.5, 0)
+
+[node name="TextoSuperior" type="Label" parent="."]
+anchors_preset = 2
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = 0.0
+offset_top = 120.0
+offset_right = 0.0
+offset_bottom = 180.0
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 36
+theme_override_constants/outline_size = 4
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.6)
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "ZONA DE PRUEBAS, OLEADA 1"
+
+[node name="TextoInferior" type="Label" parent="."]
+anchors_preset = 2
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = 0.0
+offset_top = 180.0
+offset_right = 0.0
+offset_bottom = 220.0
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 22
+theme_override_constants/outline_size = 3
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "¡SE ACERCAN MÁS ENEMIGOS!"
