@@ -20,11 +20,13 @@ enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 
 @export_group("Dash")
 @export var fixed_dash_distance: float = 16.0
+@export var min_dash_distance: float = 3.0
 
 @export_group("Timing")
 @export var telegraph_duration: float = 1.0
 @export var submerge_duration: float = 0.3
-@export var attack_duration: float = 0.3
+@export var attack_duration: float = 0.15
+@export var dome_grace_duration: float = 0.35
 @export var recovery_duration: float = 2.0
 
 @export_group("Combat")
@@ -41,7 +43,7 @@ enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
 
-@export var max_hp: int = 40
+@export var max_hp: int = 20
 
 var hp: int
 var _state: State = State.CHASE
@@ -61,6 +63,11 @@ var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
 
 var _vision_query: PhysicsRayQueryParameters3D = null
+
+var _dome: Node3D = null
+var _dome_mesh: MeshInstance3D = null
+var _dome_area: Area3D = null
+var _dome_damage_dealt: bool = false
 
 @onready var _visual: Node3D = $Visual
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
@@ -141,8 +148,31 @@ func _update_fsm(delta: float) -> void:
 				_change_state(State.ATTACK)
 
 		State.ATTACK:
-			if _state_elapsed >= attack_duration:
-				_deal_dome_damage()
+			var emerge_t := minf(_state_elapsed / attack_duration, 1.0)
+			if _dome_mesh != null:
+				_dome_mesh.scale = Vector3(emerge_t, emerge_t, emerge_t)
+
+			if not _dome_damage_dealt and _target != null:
+				var current_radius := indicator_radius * emerge_t
+				if _target is Node3D:
+					var player_node := _target as Node3D
+					var player_dist_sq := global_position.distance_squared_to(player_node.global_position)
+					if player_dist_sq <= current_radius * current_radius:
+						_dome_damage_dealt = true
+						if player_node.has_method("take_damage"):
+							player_node.take_damage(attack_damage)
+						if player_node.has_method("apply_knockback"):
+							var knock_dir := (player_node.global_position - global_position).normalized()
+							player_node.apply_knockback(knock_dir * Vector3(1, 1.5, 1), 28.0)
+						_hit_dealt = true
+
+			if _state_elapsed >= attack_duration and _state_elapsed < attack_duration + dome_grace_duration:
+				var pulse := sin(_state_elapsed * 24.0) * 0.5 + 0.5
+				var mat := _dome_mesh.material_override as StandardMaterial3D
+				if mat != null:
+					mat.albedo_color.a = 0.15 + pulse * 0.5
+
+			if _state_elapsed >= attack_duration + dome_grace_duration:
 				_change_state(State.RECOVERY)
 
 		State.RECOVERY:
@@ -158,7 +188,8 @@ func _calculate_destination() -> void:
 		dir = Vector3.FORWARD
 	else:
 		dir = dir.normalized()
-	_destination = _origin + dir * fixed_dash_distance
+	var dash_dist := maxf(fixed_dash_distance, min_dash_distance)
+	_destination = _origin + dir * dash_dist
 	_destination.y = _origin.y
 
 
@@ -190,11 +221,14 @@ func _change_state(new_state: State) -> void:
 			_visual.visible = true
 			_body_mesh.visible = true
 			_set_collision_enabled(true)
+			_dome_damage_dealt = false
+			_create_dome()
 
 		State.RECOVERY:
 			_indicator.visible = false
 			_direction_line.visible = false
 			_set_collision_enabled(true)
+			_destroy_dome()
 
 		State.CHASE:
 			_visual.visible = true
@@ -234,6 +268,63 @@ func _update_indicator(current: Vector3) -> void:
 		_direction_line.scale = Vector3(1.0, 1.0, line_dist)
 		_direction_line.look_at(Vector3(line_to.x, 0.02, line_to.z), Vector3.UP)
 	_direction_line.visible = line_dist > 0.1
+
+
+func _create_dome() -> void:
+	_dome = Node3D.new()
+	_dome.name = "Dome"
+	add_child(_dome)
+
+	_dome_mesh = MeshInstance3D.new()
+	_dome_mesh.name = "DomeMesh"
+	var sphere := SphereMesh.new()
+	sphere.radius = indicator_radius
+	sphere.height = indicator_radius * 2.0
+	sphere.radial_segments = 24
+	sphere.rings = 12
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1, 0.12, 0.02, 0.35)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.emission_enabled = true
+	mat.emission = Color(1, 0.08, 0.0)
+	mat.emission_energy_multiplier = 1.5
+	_dome_mesh.material_override = mat
+	_dome_mesh.mesh = sphere
+	_dome_mesh.position = Vector3(0, 0, 0)
+	_dome_mesh.scale = Vector3.ZERO
+	_dome.add_child(_dome_mesh)
+
+	_dome_area = Area3D.new()
+	_dome_area.name = "DomeArea"
+	_dome_area.collision_mask = 1
+	_dome_area.monitoring = false
+	var shape_node := CollisionShape3D.new()
+	shape_node.name = "DomeShape"
+	var cyl := CylinderShape3D.new()
+	cyl.radius = indicator_radius
+	cyl.height = 1.0
+	shape_node.shape = cyl
+	_dome_area.add_child(shape_node)
+	_dome.add_child(_dome_area)
+	_dome_area.body_entered.connect(_on_dome_entered)
+
+
+func _destroy_dome() -> void:
+	if _dome != null and is_instance_valid(_dome):
+		_dome.queue_free()
+	_dome = null
+	_dome_mesh = null
+	_dome_area = null
+
+
+func _on_dome_entered(body: Node) -> void:
+	if _dome_damage_dealt:
+		return
+	if body == _target and body.has_method("take_damage"):
+		body.take_damage(attack_damage)
+		_hit_dealt = true
 
 
 func _deal_dome_damage() -> void:
