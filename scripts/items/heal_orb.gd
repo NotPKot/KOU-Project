@@ -13,9 +13,9 @@ var _time: float = 0.0
 var _target: Node = null
 
 const CHOICES: Array[Dictionary] = [
-	{"id": "lifesteal", "label": "Lifesteal", "description": "Robas vida al golpear. 25% del dano infligido."},
-	{"id": "potion", "label": "Pocion", "description": "Curacion instantanea. 35 HP, cooldown 5.5s."},
-	{"id": "regen", "label": "Regeneracion", "description": "16 HP/s si evitas dano 1.8s. Se reinicia al recibir un golpe."},
+	{"id": "lifesteal", "label": "Lifesteal", "description": "Robas vida al golpear. 10% del dano infligido."},
+	{"id": "potion", "label": "Pocion", "description": "Curacion instantanea. 35 HP, cooldown 7s."},
+	{"id": "regen", "label": "Regeneracion", "description": "16 HP/s si evitas dano 10s. Se reinicia al recibir un golpe."},
 ]
 
 const CHOICE_PANEL_SCENE := preload("res://scenes/ui/ChoicePanel.tscn")

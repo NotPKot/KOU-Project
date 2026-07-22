@@ -19,8 +19,9 @@ enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 @export var pursuit_boost_max: float = 3.0
 
 @export_group("Dash")
-@export var fixed_dash_distance: float = 16.0
-@export var min_dash_distance: float = 3.0
+@export var fixed_dash_distance: float = 10.0
+@export var min_dash_distance: float = 14.0
+@export var travel_speed_variance: float = 1.0
 
 @export_group("Timing")
 @export var telegraph_duration: float = 1.0
@@ -34,7 +35,7 @@ enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 @export var indicator_radius: float = 2.5
 
 @export_group("Detection")
-@export var aggro_range: float = 16.0
+@export var aggro_range: float = 32.0
 @export var vision_range: float = 40.0
 @export var vision_angle: float = 120.0
 @export var lose_sight_time: float = 3.0
@@ -61,6 +62,7 @@ var _approach_angle: float = 0.0
 
 var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
+var _travel_speed: float = 6.0
 
 var _vision_query: PhysicsRayQueryParameters3D = null
 
@@ -81,6 +83,7 @@ func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
 	_approach_angle = fposmod(float(get_instance_id() % 10000) * 2.3999632, TAU)
+	_travel_speed = travel_speed + randf_range(-travel_speed_variance, travel_speed_variance)
 
 	NavigationServer3D.map_changed.connect(_on_nav_map_changed)
 
@@ -121,12 +124,13 @@ func _update_fsm(delta: float) -> void:
 				_change_state(State.SUBMERGE)
 
 		State.SUBMERGE:
+			_update_telegraph_indicator()
 			if _state_elapsed >= submerge_duration:
 				_change_state(State.TRAVEL)
 
 		State.TRAVEL:
 			var travel_dist := _origin.distance_to(_destination)
-			var speed := travel_speed * delta / maxf(travel_dist, 0.001)
+			var speed := _travel_speed * delta / maxf(travel_dist, 0.001)
 			_travel_progress = minf(_travel_progress + speed, 1.0)
 			var pos := _origin.lerp(_destination, _travel_progress)
 			global_position = pos
@@ -188,15 +192,18 @@ func _update_fsm(delta: float) -> void:
 
 func _calculate_destination() -> void:
 	_origin = global_position
-	var dir := (_get_approach_target() - _origin)
-	dir.y = 0.0
-	if dir.length_squared() < 0.001:
-		dir = Vector3.FORWARD
-	else:
-		dir = dir.normalized()
-	var dash_dist := maxf(fixed_dash_distance, min_dash_distance)
-	_destination = _origin + dir * dash_dist
+	var approach_dir := _origin.direction_to(_target.global_position)
+	approach_dir.y = 0.0
+	if approach_dir.length_squared() < 0.001:
+		approach_dir = Vector3.FORWARD
+	var angle_offset := _approach_angle / TAU * deg_to_rad(120.0) - deg_to_rad(60.0)
+	var dash_dir := approach_dir.rotated(Vector3.UP, angle_offset)
+	_destination = _target.global_position + dash_dir * fixed_dash_distance
 	_destination.y = _origin.y
+	var dash_dist := _origin.distance_to(_destination)
+	if dash_dist < min_dash_distance and dash_dist > 0.001:
+		var extend := (min_dash_distance - dash_dist) / dash_dist
+		_destination = _origin + (_destination - _origin) * (1.0 + extend)
 
 
 func _change_state(new_state: State) -> void:
@@ -207,7 +214,7 @@ func _change_state(new_state: State) -> void:
 	match new_state:
 		State.TELEGRAPH:
 			_calculate_destination()
-			_indicator.visible = true
+			_indicator.visible = false
 			_direction_line.visible = true
 
 		State.SUBMERGE:
@@ -455,7 +462,6 @@ func _get_approach_target() -> Vector3:
 func _set_stop_velocity(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, 200.0 * delta)
 	velocity.z = move_toward(velocity.z, 0.0, 200.0 * delta)
-
 
 func _apply_gravity(delta: float) -> void:
 	if not is_on_floor():

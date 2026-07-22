@@ -22,24 +22,19 @@ class EnemyData:
 @export var wave_budget_per_wave: int = 15
 @export var spawn_radius: float = 8.0
 @export var spawn_min_distance: float = 3.0
-@export var spawn_cooldown: float = 0.8
-@export var healer_weight: int = 8
+@export var spawn_cooldown_base: float = 0.8
+@export var spawn_cooldown_variance: float = 0.3
+@export var healer_weight: int = 5
 
 @export_group("Waves")
 @export var intermission_duration: float = 6.5
 @export var max_waves: int = 0 # 0 = oleadas infinitas
 
-@export_group("Roles Base")
-@export var base_max_pressure: int = 3
-@export var base_max_control: int = 2
-@export var base_max_support: int = 1
-@export var min_pressure: int = 1
-@export var min_offensive_for_support: int = 1
-
-@export_group("Role Scaling (per N waves)")
-@export var pressure_scale_interval: int = 3
-@export var control_scale_interval: int = 4
-@export var support_scale_interval: int = 5
+@export_group("Total Cap")
+@export var base_cap_min: int = 7
+@export var base_cap_max: int = 13
+@export var cap_growth_min: int = 5
+@export var cap_growth_max: int = 7
 
 @export_group("Audio")
 @export var slash_sfx: AudioStream
@@ -56,12 +51,14 @@ var _waiting_for_wave_clear: bool = false
 
 var _enemies: Array[EnemyData] = []
 var _last_spawn_time: float = -INF
+var _current_spawn_cooldown: float = 0.8
+var _current_wave_cap: int = 0
 
 
 func _ready() -> void:
 	_enemies = [
 		EnemyData.new(preload("res://scenes/enemies/BasicEnemy.tscn"), Role.PRESSURE, 1, 60, "Basic"),
-		EnemyData.new(preload("res://scenes/enemies/CalmyrEnemy.tscn"), Role.CONTROL, 2, 25, "Calmyr"),
+		EnemyData.new(preload("res://scenes/enemies/CalmyrEnemy.tscn"), Role.CONTROL, 1, 25, "Calmyr"),
 		EnemyData.new(preload("res://scenes/enemies/HealerEnemy.tscn"), Role.SUPPORT,    2, healer_weight, "Healer"),
 	]
 	add_to_group("combat_button")
@@ -86,6 +83,7 @@ func activate() -> void:
 	_accrued_spawn_value = 0.0
 	_spawn_pause_timer = intermission_duration
 	_waiting_for_wave_clear = false
+	_current_wave_cap = _compute_wave_cap()
 	_play_slash()
 	combat_started.emit()
 
@@ -101,56 +99,30 @@ func _play_slash() -> void:
 	p.finished.connect(p.queue_free)
 
 
-func _get_max_pressure() -> int:
-	return base_max_pressure + int(float(_current_wave - 1) / pressure_scale_interval)
-
-
-func _get_max_control() -> int:
-	return base_max_control + int(float(_current_wave - 1) / control_scale_interval)
-
-
-func _get_max_support() -> int:
-	return base_max_support + int(float(_current_wave - 1) / support_scale_interval)
-
-
-func _count_role(role: Role) -> int:
-	var n := 0
-	for d in _alive_entries:
-		if d.role == role:
-			n += 1
-	return n
-
-
-func _total_offensive() -> int:
-	return _count_role(Role.PRESSURE) + _count_role(Role.CONTROL)
+func _compute_wave_cap() -> int:
+	var base := base_cap_min + randi() % (base_cap_max - base_cap_min + 1)
+	var growth := cap_growth_min + randi() % (cap_growth_max - cap_growth_min + 1)
+	return base + growth * (_current_wave - 1)
 
 
 func _can_spawn(ed: EnemyData) -> bool:
-	match ed.role:
-		Role.PRESSURE:
-			return _count_role(Role.PRESSURE) < _get_max_pressure()
-		Role.CONTROL:
-			return _count_role(Role.CONTROL) < _get_max_control() and _count_role(Role.PRESSURE) >= min_pressure
-		Role.SUPPORT:
-			if _count_role(Role.SUPPORT) >= _get_max_support():
-				return false
-			if _total_offensive() < min_offensive_for_support:
-				return false
-			if _alive_entries.is_empty():
-				return false
-			var has_ally := false
-			for d in _alive_entries:
-				if d.role != Role.SUPPORT:
-					has_ally = true
-					break
-			if not has_ally:
-				return false
-			return true
+	if _alive_entries.size() >= _current_wave_cap:
+		return false
+	if ed.role == Role.SUPPORT:
+		if _alive_entries.is_empty():
+			return false
+		var has_ally := false
+		for d in _alive_entries:
+			if d.role != Role.SUPPORT:
+				has_ally = true
+				break
+		if not has_ally:
+			return false
 	return true
 
 
 func _try_spawn() -> bool:
-	if _elapsed - _last_spawn_time < spawn_cooldown:
+	if _elapsed - _last_spawn_time < _current_spawn_cooldown:
 		return false
 
 	var valid_all := _get_valid_enemies()
@@ -169,6 +141,7 @@ func _try_spawn() -> bool:
 	_wave_budget_spent += ed.cost
 	_place_enemy(ed)
 	_last_spawn_time = _elapsed
+	_current_spawn_cooldown = maxf(0.3, spawn_cooldown_base + randf_range(-spawn_cooldown_variance, spawn_cooldown_variance))
 	return true
 
 
@@ -273,4 +246,5 @@ func _begin_intermission() -> void:
 	_accrued_spawn_value = 0.0
 	_spawn_pause_timer = intermission_duration
 	_waiting_for_wave_clear = false
+	_current_wave_cap = _compute_wave_cap()
 	wave_changed.emit(_current_wave)

@@ -7,6 +7,8 @@ signal died
 @export var air_max_speed: float = 8.0
 @export var ground_accel: float = 60.0
 @export var air_accel: float = 8.0
+@export var air_soft_cap_speed: float = 20.0
+@export var air_soft_cap_drag: float = 4.0
 @export var ground_friction: float = 6.0
 @export var ground_stop_speed: float = 2.0
 @export var gravity: float = 18.0
@@ -79,7 +81,7 @@ var hp: int
 var _trimp_cooldown_timer: float = 0.0
 var _movement_debug_timer: float = 0.0
 
-const CLEAN_TIME_THRESHOLD: float = 1.8
+const CLEAN_TIME_THRESHOLD: float = 10.0
 const REGEN_HPS: float = 16.0
 var _parry_window: float = 0.0
 var _shake_offset: Vector2 = Vector2.ZERO
@@ -241,6 +243,7 @@ func _physics_process(delta: float) -> void:
 
 	else:
 		apply_acceleration(wish_dir, air_max_speed, current_air_accel, delta)
+		_apply_air_speed_soft_cap(delta)
 		var gravity_scale: float = temporal_impulse_gravity_scale if _air_control_timer > 0.0 and velocity.y < 0.0 else 1.0
 		velocity.y = max(velocity.y - gravity * gravity_scale * delta, -terminal_velocity)
 
@@ -422,6 +425,19 @@ func _move_and_slide_with_trimp(pre_slide_velocity: Vector3) -> void:
 	_try_apply_trimp(pre_slide_velocity)
 
 
+func _apply_air_speed_soft_cap(delta: float) -> void:
+	if air_soft_cap_speed <= 0.0:
+		return
+	var h_speed := Vector3(velocity.x, 0.0, velocity.z).length()
+	if h_speed > air_soft_cap_speed:
+		var excess := h_speed - air_soft_cap_speed
+		var reduction := excess * air_soft_cap_drag * delta
+		var new_h_speed := maxf(h_speed - reduction, air_soft_cap_speed)
+		var ratio := new_h_speed / h_speed
+		velocity.x *= ratio
+		velocity.z *= ratio
+
+
 func _try_apply_trimp(pre_slide_velocity: Vector3) -> void:
 	if not trimp_enabled or _trimp_cooldown_timer > 0.0:
 		return
@@ -555,10 +571,10 @@ func set_parry_window(duration: float) -> void:
 func set_healing_mechanic(mechanic_id: StringName) -> void:
 	match mechanic_id:
 		&"lifesteal":
-			_lifesteal_ratio = 0.25
+			_lifesteal_ratio = 0.10
 		&"potion":
 			_potion_heal_amount = 35
-			_potion_cooldown = 5.5
+			_potion_cooldown = 7.0
 		&"regen":
 			_has_regen = true
 		_:
