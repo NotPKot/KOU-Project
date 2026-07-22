@@ -162,8 +162,14 @@ func _update_fsm(delta: float) -> void:
 						if player_node.has_method("take_damage"):
 							player_node.take_damage(attack_damage)
 						if player_node.has_method("apply_knockback"):
-							var knock_dir := (player_node.global_position - global_position).normalized()
-							player_node.apply_knockback(knock_dir * Vector3(1, 1.5, 1), 28.0)
+							var knock_dir := player_node.global_position - global_position
+							knock_dir.y = 0.0
+							if knock_dir.length_squared() > 0.001:
+								knock_dir = knock_dir.normalized()
+							else:
+								knock_dir = Vector3.FORWARD
+							knock_dir.y = 0.375
+							player_node.apply_knockback(knock_dir, 28.0)
 						_hit_dealt = true
 
 			if _state_elapsed >= attack_duration and _state_elapsed < attack_duration + dome_grace_duration:
@@ -214,6 +220,7 @@ func _change_state(new_state: State) -> void:
 			_travel_progress = 0.0
 			_triggered_by_player = false
 			global_position = _origin
+			_update_indicator(_origin)
 			_indicator.visible = true
 			_direction_line.visible = true
 
@@ -378,6 +385,7 @@ func _chase(delta: float) -> void:
 			_move_in_chase_direction(t_dir.normalized(), delta)
 		else:
 			_set_stop_velocity(delta)
+			_try_look_at_healer()
 		return
 
 	var next_point := _nav_agent.get_next_path_position()
@@ -389,6 +397,22 @@ func _chase(delta: float) -> void:
 		_move_in_chase_direction(dir, delta)
 	else:
 		_set_stop_velocity(delta)
+		_try_look_at_healer()
+
+
+func _try_look_at_healer() -> bool:
+	var enemies := get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if e == self or not is_instance_valid(e):
+			continue
+		if not e.has_method("get_current_action"):
+			continue
+		if e.get_current_action() == "HEAL":
+			var healer_pos := (e as Node3D).global_position
+			if global_position.distance_squared_to(healer_pos) < 64.0:
+				_visual.look_at(healer_pos, Vector3.UP)
+				return true
+	return false
 
 
 func _move_in_chase_direction(dir: Vector3, delta: float) -> void:

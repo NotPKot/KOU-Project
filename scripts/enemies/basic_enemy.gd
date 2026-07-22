@@ -233,6 +233,7 @@ func _set_chase_velocity(delta: float) -> void:
 			_move_in_chase_direction(t_dir.normalized(), delta)
 		else:
 			_set_stop_velocity(delta)
+			_try_look_at_healer()
 		return
 
 	var next_point := _nav_agent.get_next_path_position()
@@ -244,6 +245,22 @@ func _set_chase_velocity(delta: float) -> void:
 		_move_in_chase_direction(dir, delta)
 	else:
 		_set_stop_velocity(delta)
+		_try_look_at_healer()
+
+
+func _try_look_at_healer() -> bool:
+	var enemies := get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if e == self or not is_instance_valid(e):
+			continue
+		if not e.has_method("get_current_action"):
+			continue
+		if e.get_current_action() == "HEAL":
+			var healer_pos := (e as Node3D).global_position
+			if global_position.distance_squared_to(healer_pos) < 64.0:
+				_visual.look_at(healer_pos, Vector3.UP)
+				return true
+	return false
 
 
 func _move_in_chase_direction(dir: Vector3, delta: float) -> void:

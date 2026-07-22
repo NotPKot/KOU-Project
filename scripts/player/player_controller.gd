@@ -317,6 +317,10 @@ func take_damage(amount: int, hitter: Node = null) -> void:
 		die()
 
 
+func apply_knockback(direction: Vector3, force: float) -> void:
+	velocity += direction * force
+
+
 func _trigger_hit_shake(hitter: Node) -> void:
 	if not Settings.screen_shake_enabled:
 		return

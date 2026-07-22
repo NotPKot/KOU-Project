@@ -91,6 +91,8 @@ var _in_grab: bool = false
 
 var _winded_timer: float = 0.0
 @export var safe_distance_fallback: float = 10.0
+@export var safe_distance_speed_mult: float = 0.35
+@export var safe_distance_response: float = 8.0
 
 var _recover_timer: float = 0.0
 var _smooth_dir: Vector3 = Vector3.FORWARD
@@ -293,9 +295,10 @@ func _evaluate_best_action() -> GoapActionId:
 			FleeExit.NONE:
 				return GoapActionId.FLEE
 
+	if _is_flee_urgent():
+		return GoapActionId.FLEE
+
 	if _current_action == GoapActionId.HEAL_ALLY:
-		if _is_flee_urgent():
-			return GoapActionId.FLEE
 		if _can_heal_ally():
 			return GoapActionId.HEAL_ALLY
 		_target_ally = null
@@ -401,6 +404,20 @@ func _enter_action(action: GoapActionId) -> void:
 			_enter_winded()
 		GoapActionId.IDLE:
 			_enter_idle()
+
+
+func get_current_action() -> String:
+	match _current_action:
+		GoapActionId.HEAL_ALLY:
+			return "HEAL"
+		GoapActionId.FLEE:
+			return "FLEE"
+		GoapActionId.RECOVER:
+			return "RECOVER"
+		GoapActionId.WINDED:
+			return "WINDED"
+		_:
+			return "IDLE"
 
 
 func _exit_action(action: GoapActionId) -> void:
@@ -725,10 +742,49 @@ func _physics_process(delta: float) -> void:
 		_stand_still(delta)
 	else:
 		_execute_action(_current_action, delta)
+		_maintain_safe_distance(delta)
 	velocity += _knockback
 	_apply_gravity(delta)
 	move_and_slide()
 	_knockback = _knockback.move_toward(Vector3.ZERO, 50.0 * delta)
+
+
+func _maintain_safe_distance(delta: float) -> void:
+	if _current_action == GoapActionId.FLEE or _target == null:
+		return
+
+	var away := global_position - _target.global_position
+	away.y = 0.0
+	var distance := away.length()
+	if distance >= safe_distance_fallback:
+		return
+
+	if distance > 0.001:
+		away /= distance
+	else:
+		away = -_smooth_dir
+		away.y = 0.0
+		if away.length_squared() < 0.001:
+			away = Vector3.FORWARD
+		else:
+			away = away.normalized()
+
+	var safe_band := maxf(safe_distance_fallback - panic_detect_range, 0.001)
+	var urgency := clampf((safe_distance_fallback - distance) / safe_band, 0.0, 1.0)
+	var spacing_speed := walk_speed * safe_distance_speed_mult * urgency
+	var desired_velocity := away * spacing_speed
+	var response := clampf(
+		safe_distance_response * delta * lerpf(0.25, 1.0, urgency),
+		0.0,
+		1.0
+	)
+	velocity.x = lerpf(velocity.x, desired_velocity.x, response)
+	velocity.z = lerpf(velocity.z, desired_velocity.z, response)
+
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	if horizontal_velocity.length_squared() > 0.01:
+		_smooth_dir = horizontal_velocity.normalized()
+		_visual_node.look_at(global_position + _smooth_dir, Vector3.UP)
 
 
 func _apply_gravity(delta: float) -> void:

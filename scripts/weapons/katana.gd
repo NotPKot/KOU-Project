@@ -231,7 +231,7 @@ func _execute_cut() -> void:
 		cut_tween.tween_property(_katana_mesh, "rotation:x", deg_to_rad(18), 0.045).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 		cut_tween.tween_property(_katana_mesh, "rotation:z", deg_to_rad(36), 0.045).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
-	_swing_slash_arc = _spawn_slash_arc(arc_deg, arc_range, t)
+	_swing_slash_arc = _spawn_slash_arc(arc_deg, arc_range)
 	var fade_tween := create_tween().set_parallel(true)
 	fade_tween.tween_property(_swing_slash_arc, "scale", Vector3.ONE * 1.1, 0.12).set_trans(Tween.TRANS_SINE)
 	var mat := _swing_slash_arc.get_node("ArcMesh").material_override as StandardMaterial3D
@@ -271,7 +271,7 @@ func _free_current_slash_arc() -> void:
 	_swing_slash_arc = null
 
 
-func _spawn_slash_arc(degrees: float, outer_radius: float, t: float) -> Node3D:
+func _spawn_slash_arc(degrees: float, outer_radius: float) -> Node3D:
 	var container := Node3D.new()
 	container.name = "SlashArc"
 	var arc_mesh := MeshInstance3D.new()
