@@ -351,6 +351,8 @@ func _damage_body(body: Node) -> void:
 		damage = max(1, roundi(swing_damage * CLEAVE_DAMAGE_MULTIPLIER))
 
 	body.take_damage(damage)
+	if _player != null and _player.has_method("on_dealt_damage"):
+		_player.on_dealt_damage(damage)
 	_print_katana_debug("hit", 0.0, float(damage))
 
 	if body.has_method("apply_knockback"):

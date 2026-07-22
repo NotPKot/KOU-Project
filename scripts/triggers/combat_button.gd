@@ -189,12 +189,26 @@ func _place_enemy(ed: EnemyData) -> void:
 	var angle := randf() * TAU
 	var dist := spawn_min_distance + randf() * (spawn_radius - spawn_min_distance)
 	get_tree().current_scene.add_child(enemy)
-	enemy.global_position = global_position + Vector3(cos(angle), 0.0, sin(angle)) * dist
+	var spawn_pos := global_position + Vector3(cos(angle), 0.0, sin(angle)) * dist
+	_emerge_enemy(enemy, spawn_pos)
 	if enemy.has_method("set_target"):
 		var player := get_tree().get_first_node_in_group("player")
 		if player != null:
 			enemy.set_target(player)
 	_alive_entries.append({"node": enemy, "role": ed.role})
+
+
+func _emerge_enemy(enemy: Node, target_pos: Vector3) -> void:
+	enemy.global_position = target_pos - Vector3(0.0, 1.0, 0.0)
+	enemy.set_process(false)
+	enemy.set_physics_process(false)
+	var tween := create_tween()
+	tween.tween_property(enemy, "global_position", target_pos, 1.0)
+	tween.tween_callback(func():
+		enemy.global_position = target_pos
+		enemy.set_process(true)
+		enemy.set_physics_process(true)
+	)
 
 
 func _process(delta: float) -> void:
