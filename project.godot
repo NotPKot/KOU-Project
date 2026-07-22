@@ -63,4 +63,4 @@ rendering_device/driver.windows="d3d12"
 
 [navigation]
 
-3d/merge_rasterizer_cell_scale=2.0
+3d/merge_rasterizer_cell_scale=4.0
