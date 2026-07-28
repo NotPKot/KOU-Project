@@ -1,9 +1,12 @@
 extends CharacterBody3D
 
 @export var walk_speed: float = 8.0
-@export var turn_rate: float = 4.0
 @export var min_speed_mult: float = 0.15
 @export var acceleration: float = 12.0
+
+@export_group("Steering")
+@export var max_turn_speed: float = 720.0
+@export var slow_radius: float = 2.0
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
 @export var max_hp: int = 60
@@ -799,36 +802,60 @@ func _apply_gravity(delta: float) -> void:
 func _chase_toward(target: Vector3, speed: float, delta: float) -> void:
 	_nav_agent.target_position = target
 
+	var dir: Vector3
 	if _nav_agent.is_navigation_finished():
+		dir = target - global_position
+		dir.y = 0.0
+	else:
+		var path := _nav_agent.get_current_navigation_path()
+		var path_idx := _nav_agent.get_current_navigation_path_index()
+		var look_idx := mini(path_idx + 1, path.size() - 1)
+		var target_pos := path[look_idx] if path_idx < path.size() else global_position
+		dir = target_pos - global_position
+		dir.y = 0.0
+
+	if dir.length_squared() < 0.001:
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
 		return
 
-	var next_point := _nav_agent.get_next_path_position()
-	var dir := next_point - global_position
-	dir.y = 0.0
-
-	if dir.length_squared() > 0.001:
-		dir = dir.normalized()
-		if is_on_wall():
-			var wall_n := get_wall_normal()
-			var along := wall_n.cross(Vector3.UP).normalized()
-			dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
-		var avoid := _avoid_allies(2.0)
-		var blended := dir + avoid * 3.0
-		if blended.length_squared() < 0.001:
-			blended = dir
-		else:
-			blended = blended.normalized()
-		_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
-		var alignment := _smooth_dir.dot(blended)
-		var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
-		velocity.x = _smooth_dir.x * speed * speed_mult
-		velocity.z = _smooth_dir.z * speed * speed_mult
-		_visual_node.look_at(global_position + _smooth_dir, Vector3.UP)
+	dir = dir.normalized()
+	if is_on_wall():
+		var wall_n := get_wall_normal()
+		var along := wall_n.cross(Vector3.UP).normalized()
+		dir = (dir + along * sign(dir.dot(along)) * 0.8).normalized()
+	var avoid := _avoid_allies(2.0)
+	var blended := dir + avoid * 3.0
+	if blended.length_squared() < 0.001:
+		blended = dir
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, speed * delta)
-		velocity.z = move_toward(velocity.z, 0.0, speed * delta)
+		blended = blended.normalized()
+
+	var turn_step := deg_to_rad(max_turn_speed) * delta
+	_smooth_dir = _rotate_toward_dir(_smooth_dir, blended, turn_step)
+
+	var arrival_speed := _apply_arrival(speed, target)
+	var final_speed := minf(speed, arrival_speed)
+
+	var alignment := _smooth_dir.dot(blended)
+	var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
+	velocity.x = _smooth_dir.x * final_speed * speed_mult
+	velocity.z = _smooth_dir.z * final_speed * speed_mult
+	_visual_node.look_at(global_position + _smooth_dir, Vector3.UP)
+
+
+func _rotate_toward_dir(from: Vector3, to: Vector3, max_angle: float) -> Vector3:
+	var from_angle := atan2(from.x, -from.z)
+	var to_angle := atan2(to.x, -to.z)
+	var result_angle := rotate_toward(from_angle, to_angle, max_angle)
+	return Vector3(sin(result_angle), 0.0, -cos(result_angle)).normalized()
+
+
+func _apply_arrival(speed: float, target_pos: Vector3) -> float:
+	var dist := global_position.distance_to(target_pos)
+	if dist < slow_radius:
+		return speed * (dist / slow_radius)
+	return speed
 
 
 func _avoid_allies(min_dist: float) -> Vector3:

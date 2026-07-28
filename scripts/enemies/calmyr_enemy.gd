@@ -6,8 +6,11 @@ enum State { CHASE, TELEGRAPH, SUBMERGE, TRAVEL, ATTACK, RECOVERY }
 @export var walk_speed: float = 8.0
 @export var acceleration: float = 10.0
 @export var travel_speed: float = 6.0
-@export var turn_rate: float = 4.0
 @export var min_speed_mult: float = 0.15
+
+@export_group("Steering")
+@export var max_turn_speed: float = 720.0
+@export var slow_radius: float = 2.0
 
 @export_group("Crowd Steering")
 @export var approach_offset_radius: float = 2.0
@@ -385,23 +388,15 @@ func _chase(delta: float) -> void:
 	var approach_target := _get_approach_target()
 	_nav_agent.target_position = approach_target
 
+	var dir: Vector3
 	if _nav_agent.is_navigation_finished():
-		var t_dir := approach_target - global_position
-		t_dir.y = 0.0
-		if t_dir.length_squared() > 0.001:
-			_move_in_chase_direction(t_dir.normalized(), delta)
-		else:
-			_set_stop_velocity(delta)
-			_try_look_at_healer()
-		return
-
-	var next_point := _nav_agent.get_next_path_position()
-	var dir := next_point - global_position
-	dir.y = 0.0
+		dir = approach_target - global_position
+		dir.y = 0.0
+	else:
+		dir = _get_chase_direction()
 
 	if dir.length_squared() > 0.001:
-		dir = dir.normalized()
-		_move_in_chase_direction(dir, delta)
+		_move_in_chase_direction(dir.normalized(), delta, approach_target)
 	else:
 		_set_stop_velocity(delta)
 		_try_look_at_healer()
@@ -422,7 +417,7 @@ func _try_look_at_healer() -> bool:
 	return false
 
 
-func _move_in_chase_direction(dir: Vector3, delta: float) -> void:
+func _move_in_chase_direction(dir: Vector3, delta: float, target_pos: Vector3) -> void:
 	if is_on_wall():
 		var wall_n := get_wall_normal()
 		var along := wall_n.cross(Vector3.UP).normalized()
@@ -435,7 +430,11 @@ func _move_in_chase_direction(dir: Vector3, delta: float) -> void:
 		blended = dir
 
 	var speed := _get_pursuit_speed()
-	_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
+	speed = minf(speed, _apply_arrival(speed, target_pos))
+
+	var turn_step := deg_to_rad(max_turn_speed) * delta
+	_smooth_dir = _rotate_toward_dir(_smooth_dir, blended, turn_step)
+
 	var alignment := _smooth_dir.dot(blended)
 	var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
 	velocity.x = _smooth_dir.x * speed * speed_mult
@@ -457,6 +456,34 @@ func _get_approach_target() -> Vector3:
 
 	var ring_offset := Vector3(cos(_approach_angle), 0.0, sin(_approach_angle)) * approach_offset_radius
 	return _target.global_position + ring_offset
+
+
+func _rotate_toward_dir(from: Vector3, to: Vector3, max_angle: float) -> Vector3:
+	var from_angle := atan2(from.x, -from.z)
+	var to_angle := atan2(to.x, -to.z)
+	var result_angle := rotate_toward(from_angle, to_angle, max_angle)
+	return Vector3(sin(result_angle), 0.0, -cos(result_angle)).normalized()
+
+
+func _apply_arrival(speed: float, target_pos: Vector3) -> float:
+	var dist := global_position.distance_to(target_pos)
+	if dist < slow_radius:
+		return speed * (dist / slow_radius)
+	return speed
+
+
+func _get_chase_direction() -> Vector3:
+	var path := _nav_agent.get_current_navigation_path()
+	var path_idx := _nav_agent.get_current_navigation_path_index()
+
+	var look_idx := mini(path_idx + 1, path.size() - 1)
+	var target_pos := path[look_idx] if path_idx < path.size() else global_position
+
+	var dir := target_pos - global_position
+	dir.y = 0.0
+	if dir.length_squared() > 0.001:
+		return dir.normalized()
+	return Vector3.ZERO
 
 
 func _set_stop_velocity(delta: float) -> void:

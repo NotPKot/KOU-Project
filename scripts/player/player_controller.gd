@@ -103,7 +103,6 @@ const LAND_RECOVER_DURATION: float = 0.15
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("player")
-	add_to_group("saveable")
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	_min_pitch_rad = deg_to_rad(min_pitch_degrees)
 	_max_pitch_rad = deg_to_rad(max_pitch_degrees)
@@ -696,35 +695,6 @@ func get_cooldowns() -> Array[Dictionary]:
 	return result
 
 
-func get_save_data() -> Dictionary:
-	return {
-		"global_position": _vector3_to_array(global_position),
-		"camera_yaw": _camera_yaw,
-		"camera_pitch": _camera_pitch,
-		"mouse_weapon_id": String(mouse_weapon_id),
-		"mobility_skill_id": String(mobility_skill_id),
-	}
-
-
-func apply_save_data(data: Dictionary) -> void:
-	var pos_data = data.get("global_position")
-	if pos_data != null:
-		global_position = _array_to_vector3(pos_data, global_position)
-
-	_camera_yaw = float(data.get("camera_yaw", _camera_yaw))
-	_camera_pitch = float(data.get("camera_pitch", _camera_pitch))
-	_apply_camera_rotation()
-
-	var saved_weapon := StringName(str(data.get("mouse_weapon_id", "")))
-	if saved_weapon != &"":
-		set_mouse_weapon(saved_weapon)
-
-	var saved_mobility := StringName(str(data.get("mobility_skill_id", "")))
-	if saved_mobility != &"":
-		set_mobility_skill(saved_mobility)
-
-
-
 func _equip_mouse_weapon(weapon_id: StringName) -> void:
 	if _mouse_weapon != null:
 		if _mouse_weapon.has_method("unequip"):
@@ -743,18 +713,3 @@ func _equip_mouse_weapon(weapon_id: StringName) -> void:
 			_mouse_weapon.equip(self)
 		_:			
 			print("Mouse weapon pending implementation: ", weapon_id)
-
-
-func _vector3_to_array(value: Vector3) -> Array:
-	return [value.x, value.y, value.z]
-
-
-func _array_to_vector3(value: Variant, fallback: Vector3) -> Vector3:
-	if typeof(value) != TYPE_ARRAY:
-		return fallback
-
-	var array := value as Array
-	if array.size() < 3:
-		return fallback
-
-	return Vector3(float(array[0]), float(array[1]), float(array[2]))

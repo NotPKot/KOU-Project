@@ -1,12 +1,15 @@
 extends CharacterBody3D
 
-enum State { CHASE, WINDUP, DASH, RECOVERY }
+enum State { CHASE, WINDUP, DASH, RECOVERY, RETREATING, HIDING }
 
 @export_group("Movement")
 @export var walk_speed: float = 8.0
 @export var acceleration: float = 10.0
-@export var turn_rate: float = 4.0
 @export var min_speed_mult: float = 0.15
+
+@export_group("Steering")
+@export var max_turn_speed: float = 720.0
+@export var slow_radius: float = 2.0
 
 @export_group("Crowd Steering")
 @export var approach_offset_radius: float = 1.75
@@ -37,6 +40,11 @@ enum State { CHASE, WINDUP, DASH, RECOVERY }
 @export var gravity: float = 18.0
 @export var terminal_velocity: float = 42.0
 
+@export_group("Retreat")
+@export var retreat_y_threshold: float = 1.5
+@export var retreat_max_horiz_dist: float = 20.0
+@export var hide_timeout: float = 15.0
+
 @export var max_hp: int = 50
 
 var hp: int
@@ -52,6 +60,8 @@ var _approach_angle: float = 0.0
 
 var _knockback: Vector3 = Vector3.ZERO
 var _target: Node3D = null
+var _retreat_spot: HidingSpot = null
+var _hiding_sight_lost: float = 0.0
 var _left_fist_material: StandardMaterial3D = null
 var _right_fist_material: StandardMaterial3D = null
 var _body_fist_material: StandardMaterial3D = null
@@ -64,6 +74,12 @@ var _vision_query: PhysicsRayQueryParameters3D = null
 @onready var _right_fist: MeshInstance3D = $Visual/RightFist
 @onready var _nav_agent: NavigationAgent3D = $NavigationAgent3D
 @onready var _status: StatusEffectController = $StatusEffectController
+
+
+func _exit_tree() -> void:
+	if _retreat_spot != null:
+		_retreat_spot.occupied = false
+		_retreat_spot = null
 
 
 func _ready() -> void:
@@ -105,6 +121,24 @@ func _update_fsm(_delta: float) -> void:
 		State.CHASE:
 			if dist_sq <= dash_trigger_range * dash_trigger_range:
 				_change_state(State.WINDUP)
+			elif _cannot_reach_player():
+				_on_cannot_reach_player()
+
+		State.RETREATING:
+			if dist_sq <= dash_trigger_range * dash_trigger_range:
+				_change_state(State.WINDUP)
+			elif _nav_agent.is_navigation_finished():
+				_change_state(State.HIDING)
+
+		State.HIDING:
+			if dist_sq <= dash_trigger_range * dash_trigger_range:
+				_change_state(State.WINDUP)
+			elif _can_chase_player():
+				_change_state(State.CHASE)
+			else:
+				_hiding_sight_lost += _delta
+				if _hiding_sight_lost >= hide_timeout:
+					_change_state(State.CHASE)
 
 		State.WINDUP:
 			if _state_elapsed >= windup_duration:
@@ -125,6 +159,11 @@ func _change_state(new_state: State) -> void:
 	_hit_dealt = false
 
 	match new_state:
+		State.CHASE:
+			if _retreat_spot != null:
+				_retreat_spot.occupied = false
+				_retreat_spot = null
+
 		State.WINDUP:
 			if _target != null:
 				var to_player := _target.global_position - global_position
@@ -140,6 +179,10 @@ func _change_state(new_state: State) -> void:
 					if _target.has_method("take_damage"):
 						_target.take_damage(attack_damage, self)
 						_hit_dealt = true
+
+		State.HIDING:
+			_set_stop_velocity(0.0)
+			_hiding_sight_lost = 0.0
 
 
 func _update_visual(_delta: float) -> void:
@@ -160,6 +203,18 @@ func _update_visual(_delta: float) -> void:
 			_get_fist_material(0).albedo_color = dim
 			_get_fist_material(1).albedo_color = dim
 			_get_body_material().albedo_color = dim
+
+		State.RETREATING:
+			var dim := Color(0.55, 0.35, 0.55)
+			_get_fist_material(0).albedo_color = dim
+			_get_fist_material(1).albedo_color = dim
+			_get_body_material().albedo_color = dim
+
+		State.HIDING:
+			var dark := Color(0.2, 0.1, 0.2)
+			_get_fist_material(0).albedo_color = dark
+			_get_fist_material(1).albedo_color = dark
+			_get_body_material().albedo_color = dark
 
 		State.CHASE:
 			_reset_visual()
@@ -210,6 +265,10 @@ func _set_velocity_for_state(delta: float) -> void:
 	match _state:
 		State.CHASE:
 			_set_chase_velocity(delta)
+		State.RETREATING:
+			_set_retreat_velocity(delta)
+		State.HIDING:
+			_set_hiding_velocity(delta)
 		State.WINDUP:
 			_set_stop_velocity(delta)
 		State.DASH:
@@ -226,23 +285,15 @@ func _set_chase_velocity(delta: float) -> void:
 	var approach_target := _get_approach_target()
 	_nav_agent.target_position = approach_target
 
+	var dir: Vector3
 	if _nav_agent.is_navigation_finished():
-		var t_dir := approach_target - global_position
-		t_dir.y = 0.0
-		if t_dir.length_squared() > 0.001:
-			_move_in_chase_direction(t_dir.normalized(), delta)
-		else:
-			_set_stop_velocity(delta)
-			_try_look_at_healer()
-		return
-
-	var next_point := _nav_agent.get_next_path_position()
-	var dir := next_point - global_position
-	dir.y = 0.0
+		dir = approach_target - global_position
+		dir.y = 0.0
+	else:
+		dir = _get_chase_direction()
 
 	if dir.length_squared() > 0.001:
-		dir = dir.normalized()
-		_move_in_chase_direction(dir, delta)
+		_move_in_chase_direction(dir.normalized(), delta, approach_target)
 	else:
 		_set_stop_velocity(delta)
 		_try_look_at_healer()
@@ -263,7 +314,7 @@ func _try_look_at_healer() -> bool:
 	return false
 
 
-func _move_in_chase_direction(dir: Vector3, delta: float) -> void:
+func _move_in_chase_direction(dir: Vector3, delta: float, target_pos: Vector3) -> void:
 	if is_on_wall():
 		var wall_n := get_wall_normal()
 		var along := wall_n.cross(Vector3.UP).normalized()
@@ -276,7 +327,11 @@ func _move_in_chase_direction(dir: Vector3, delta: float) -> void:
 		blended = dir
 
 	var speed := _get_pursuit_speed()
-	_smooth_dir = _smooth_dir.lerp(blended, turn_rate * delta).normalized()
+	speed = minf(speed, _apply_arrival(speed, target_pos))
+
+	var turn_step := deg_to_rad(max_turn_speed) * delta
+	_smooth_dir = _rotate_toward_dir(_smooth_dir, blended, turn_step)
+
 	var alignment := _smooth_dir.dot(blended)
 	var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
 	velocity.x = _smooth_dir.x * speed * speed_mult
@@ -298,6 +353,104 @@ func _get_approach_target() -> Vector3:
 
 	var ring_offset := Vector3(cos(_approach_angle), 0.0, sin(_approach_angle)) * approach_offset_radius
 	return _target.global_position + ring_offset
+
+
+func _cannot_reach_player() -> bool:
+	if _target == null:
+		return false
+	if not _target.is_on_floor():
+		return false
+	if _target.global_position.y - global_position.y <= retreat_y_threshold:
+		return false
+	var horiz_dist := Vector3(global_position.x, 0.0, global_position.z).distance_to(
+		Vector3(_target.global_position.x, 0.0, _target.global_position.z)
+	)
+	if horiz_dist > retreat_max_horiz_dist:
+		return false
+	return _nav_agent.is_navigation_finished()
+
+
+func _can_chase_player() -> bool:
+	if _target == null:
+		return true
+	return _target.global_position.y - global_position.y <= retreat_y_threshold
+
+
+func _on_cannot_reach_player() -> void:
+	var spot := _find_nearest_free_hiding_spot()
+	if spot != null:
+		spot.occupied = true
+		_retreat_spot = spot
+		_change_state(State.RETREATING)
+		_nav_agent.target_position = spot.global_position
+	else:
+		_change_state(State.HIDING)
+
+
+func _find_nearest_free_hiding_spot() -> HidingSpot:
+	var spots: Array[HidingSpot] = []
+	for s in get_tree().get_nodes_in_group("hiding_spots"):
+		if not s.occupied:
+			spots.append(s)
+	if spots.is_empty():
+		return null
+	spots.sort_custom(func(a: HidingSpot, b: HidingSpot) -> bool:
+		return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position)
+	)
+	return spots[0]
+
+
+func _set_retreat_velocity(delta: float) -> void:
+	if _retreat_spot == null or _nav_agent.is_navigation_finished():
+		_set_stop_velocity(delta)
+		return
+
+	var next_point := _nav_agent.get_next_path_position()
+	var dir := next_point - global_position
+	dir.y = 0.0
+
+	if dir.length_squared() > 0.001:
+		var turn_step := deg_to_rad(max_turn_speed) * delta
+		_smooth_dir = _rotate_toward_dir(_smooth_dir, dir.normalized(), turn_step)
+		var alignment := _smooth_dir.dot(dir.normalized())
+		var speed_mult := clampf(remap(alignment, -1.0, 1.0, min_speed_mult, 1.0), min_speed_mult, 1.0)
+		velocity.x = _smooth_dir.x * walk_speed * speed_mult
+		velocity.z = _smooth_dir.z * walk_speed * speed_mult
+		_visual.look_at(global_position + _smooth_dir, Vector3.UP)
+	else:
+		_set_stop_velocity(delta)
+
+
+func _set_hiding_velocity(_delta: float) -> void:
+	_set_stop_velocity(_delta)
+
+
+func _rotate_toward_dir(from: Vector3, to: Vector3, max_angle: float) -> Vector3:
+	var from_angle := atan2(from.x, -from.z)
+	var to_angle := atan2(to.x, -to.z)
+	var result_angle := rotate_toward(from_angle, to_angle, max_angle)
+	return Vector3(sin(result_angle), 0.0, -cos(result_angle)).normalized()
+
+
+func _apply_arrival(speed: float, target_pos: Vector3) -> float:
+	var dist := global_position.distance_to(target_pos)
+	if dist < slow_radius:
+		return speed * (dist / slow_radius)
+	return speed
+
+
+func _get_chase_direction() -> Vector3:
+	var path := _nav_agent.get_current_navigation_path()
+	var path_idx := _nav_agent.get_current_navigation_path_index()
+
+	var look_idx := mini(path_idx + 1, path.size() - 1)
+	var target_pos := path[look_idx] if path_idx < path.size() else global_position
+
+	var dir := target_pos - global_position
+	dir.y = 0.0
+	if dir.length_squared() > 0.001:
+		return dir.normalized()
+	return Vector3.ZERO
 
 
 func _set_dash_velocity() -> void:

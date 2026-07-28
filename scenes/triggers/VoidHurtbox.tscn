@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/triggers/void_hurtbox.gd" id="1_void_hurtbox"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_void"]
-size = Vector3(200, 1, 200)
+size = Vector3(400, 1, 400)
 
 [node name="VoidHurtbox" type="Area3D"]
 script = ExtResource("1_void_hurtbox")

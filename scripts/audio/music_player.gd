@@ -1,6 +1,6 @@
 extends Node
 
-const CALM_DIR := "res://assets/audio/music/calm/"
+const CALM_DIR := "res://assets/audio/music/chill/"
 const COMBAT_DIR := "res://assets/audio/music/fight/"
 
 @export var crossfade_duration: float = 2.0
@@ -19,6 +19,14 @@ const MUFFLED_CUTOFF: float = 600.0
 const FULL_CUTOFF: float = 22000.0
 
 
+const CALM_TRACKS: Array[AudioStream] = [
+]
+
+const COMBAT_TRACKS: Array[AudioStream] = [
+	preload("res://assets/audio/music/fight/hive troopers.ogg"),
+]
+
+
 func _ready() -> void:
 	_setup_music_bus()
 
@@ -32,8 +40,13 @@ func _ready() -> void:
 
 	MusicManager.music_state_changed.connect(_on_music_state_changed)
 
-	_calm_tracks = _load_tracks_from(CALM_DIR)
-	_combat_tracks = _load_tracks_from(COMBAT_DIR)
+	_calm_tracks = CALM_TRACKS.duplicate()
+	_combat_tracks = COMBAT_TRACKS.duplicate()
+
+	var scanned_calm := _load_tracks_from(CALM_DIR)
+	var scanned_combat := _load_tracks_from(COMBAT_DIR)
+	_calm_tracks.append_array(scanned_calm)
+	_combat_tracks.append_array(scanned_combat)
 
 	if not _calm_tracks.is_empty():
 		var stream := _calm_tracks[randi() % _calm_tracks.size()]
